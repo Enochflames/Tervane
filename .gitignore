@@ -24,3 +24,6 @@ package-lock.json
 
 # dev stub data
 scripts/dev/.data/
+
+# server sqlite
+server/data/

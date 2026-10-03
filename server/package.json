@@ -2,5 +2,21 @@
   "name": "@tervane/server",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tervane/core": "workspace:*",
+    "hono": "4.13.12",
+    "viem": "2.57.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "5.9.3"
+  }
 }
