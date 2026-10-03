@@ -1,0 +1,23 @@
+{
+  "chainName": "monad-testnet",
+  "chainId": "10143",
+  "coreAddress": "0xA6F7D304b1840fc353D3c68d70B0Ac2fc473359b",
+  "priceFeedAddress": "0xf5fFACe4CB11355C61DC30f24407E830FaAb250a",
+  "usdTokenAddress": "0x1768d253BF7aA83e36230ca14366954B8C8C2872",
+  "ethTokenAddress": "0x7296fC595fbd1A0B7fD8F5470cA1A3BCd4aFAE2f",
+  "treasuryAddress": "0x074807ac37c5191CDf7815f8eb65042C1487A81f",
+  "serverUrl": "http://localhost:8787",
+  "cronSchedule": "*/30 * * * * *",
+  "maxInboxPerEpoch": 200,
+  "writeGas": {
+    "base": "110500",
+    "perPayout": "50000",
+    "perClear": "4000",
+    "overheadBytes": "1100",
+    "perByte": "16",
+    "headroomBps": "12000",
+    "max": "2500000"
+  },
+  "demoMode": true,
+  "debugLogs": true
+}

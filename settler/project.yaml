@@ -1,0 +1,9 @@
+# CRE project settings (CRE-WORKFLOW §3.1). monad-testnet is enabled for this tenant (spike S7).
+staging-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: ${MONAD_TESTNET_RPC}
+production-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: ${MONAD_TESTNET_RPC}
