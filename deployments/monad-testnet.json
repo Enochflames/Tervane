@@ -1,18 +1,18 @@
 {
   "chainId": 10143,
   "chainName": "monad-testnet",
-  "deployBlock": 67938262,
+  "deployBlock": 67943334,
   "enclavePubKey": "0x021e01adb964a4350a11f4ef9ea93eed2e668394006ad79783e67c1bc18666546f",
   "escapeDelay": 600,
-  "ethToken": "0x48c1B34e159C11aef76716BB31E2c05a09cc4783",
+  "ethToken": "0xF92Aa695a8E87De5E876837e890325DbD52972FD",
   "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
   "genesisRoot": "0x9a944bbb781208966fe18803eaaddf5c4d3ba85cbfdc0a3fde560d3a6ce8ec2b",
   "grace": 60,
   "maxPriceAge": 86400,
   "maxSkew": 120,
   "owner": "0x074807ac37c5191CDf7815f8eb65042C1487A81f",
-  "priceFeed": "0xCC681AF3f4423b570D65b47D0a34B406eDCC2Ac8",
-  "tervaneCore": "0x30Ce2CCA1B16449F5F2D35023AD936B398Fef7FA",
+  "priceFeed": "0x5271305e7F51B1f77fe60e55Fd26E38B2da09Ac0",
+  "tervaneCore": "0x062836764f4B81B34D4BCe5DfeA100D96061B6b8",
   "treasury": "0x074807ac37c5191CDf7815f8eb65042C1487A81f",
-  "usdToken": "0xbAD6B5c5524c0792457CFB2490F738dd7D61CdC5"
+  "usdToken": "0x1B0184aC6Ad50bB9E008326Ed34340f225F58f52"
 }
