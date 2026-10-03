@@ -102,6 +102,13 @@ Term-loan semantics; early repayment pays full `owed`. Revenue comes only from t
 - **Keys.** The server runs with only `INTERNAL_API_KEY` (= settler `TERVANE_SERVER_API_KEY`); signing keys are unset in its environment.
 - **Redeploy for Phase 4.** The Gate 3 deployment's epochs were settled through an in-memory stub, so no server can rebuild their states (epoch 2 holds an intent only the enclave can read): exactly the data-availability case the escape hatch covers. Phase 4 runs on a fresh deployment; the old one is archived in `deployments/archive/monad-testnet-gate3.json`. New (2026-10-03): `TervaneCore` `0x30Ce2CCA1B16449F5F2D35023AD936B398Fef7FA`, tUSD `0xbAD6B5c5524c0792457CFB2490F738dd7D61CdC5`, tETH `0x48c1B34e159C11aef76716BB31E2c05a09cc4783`, feed `0xCC681AF3f4423b570D65b47D0a34B406eDCC2Ac8`, deploy block 67938262; all Sourcify `exact_match`.
 
+### D-25 Demo tooling (Phase 5)
+- **One command:** `scripts/demo/run-all.ts` = fresh deploy → settler config → `scenarios.ts` (own server on a fresh DB) → `audit-leaks.ts`. The per-step scripts (`00`–`08`, `show-accounts`) wrap the same `steps.ts` functions for the video; `02`/`04` are `.ts`, not `.sh`. `scripts/sim-smoke.ts` aliases the run.
+- **One book covers all eight scenarios:** E1 demo book (1); E2 Ada borrows 150 against Bola's 200 @ 527 remainder with a garbage blob in the same epoch (2 setup, 5); E3 Ada repays (2); E4 crash to $1,800 + Bola over-requests a withdrawal (3, 4, with the exact DEMO-SCRIPT §2 numbers); then tamper (6), forged report (7), credit proofs, escape after `ESCAPE_DELAY` (8). Ada's borrow max is 593 bps (distinct from every other number, like D-17).
+- **Demo keys stay local:** `scripts/demo/wallets.json` is generated on first run and gitignored (the repo is public; CLAUDE.md §3.9).
+- **Audit:** bids checked in decimal/percent/hex/uint32-BE across simulator output (`-v`), server log, DB (exact values; ciphertext excluded), calldata and event words of every run tx; any secret value in captured output fails the audit (that check found O-16).
+- **Gas calibration (D-22):** an epoch with one payout used 179,496 gas (`_processReport` 99,116 vs 48,894 idle, so ≈ 50k per payout, matching `perPayout`); a clearing epoch 130,903. Limits left 25–29% headroom.
+
 ---
 
 ## Proposed (P1)
@@ -126,6 +133,7 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 - **O-13 Receiver revert is invisible in `txStatus`.** CRE-WORKFLOW §4's skeleton only checked `w.txStatus`; the forwarder can return `TX_STATUS_SUCCESS` while the receiver reverted (`receiverContractExecutionStatus = REVERTED`). Fixed in the settler and in CRE-WORKFLOW §4 (D-23). The EVM `ReceiverContractExecutionStatus` enum is not re-exported from the SDK root (only the Solana one), so the settler uses its value 0 directly.
 - **O-14 SDK test utilities (installed SDK wins).** `@chainlink/cre-sdk@1.23.0` ships `TestTeeRuntime` and documents "construct via newTestTEERuntime", but no such factory is exported. TEE handlers are tested through the `SettlerIO` port instead (D-23).
 - **O-15 Foundry's monad gas model vs the chain.** `_processReport` with nothing to pay measured 101,608 gas in `forge test` (`network = "monad"`) but 48,894 on Monad testnet (trace of the Gate 3 tx). Size gas limits from on-chain traces, not Foundry numbers.
+- **O-16 The simulator prints the server bearer key under `--engine-logs`.** The CLI's fake HTTP capability (`fakes/http_action.go`) logs each request at info level, including `authorization: Bearer …` and the body; `-v` alone does not (tested: 0 vs 1 occurrence per epoch). Found by the Gate 5 audit's secret scan in the first run; the key never left this machine, was rotated, and the affected logs were deleted. DEMO-SCRIPT §3 now forbids `--engine-logs` for captures and recordings. Deployed TEEs don't log enclave HTTP, so this is simulation-only; worth reporting to the CRE team.
 - **O-5 Provenance.** Ghost Finance (`snehendu098/ghost`) is public prior art with the same concept and near-identical write-up text. Confirm the relationship. If it isn't Lycantho's, the README must cite it as prior art, and the write-up text must be original.
 
 ---
@@ -157,3 +165,10 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 | Run | Result | Evidence |
 |---|---|---|
 | Gate 4 (`bun scripts/dev/gate4.ts`, real server + fresh deployment) | **PASS** 2026-10-03 | Server root == chain root at genesis, after H0 and after H1. Deposit + LEND intent (tx `0xc4e50ec5…d33e`) indexed as inbox #1..#2. H0 `--evm-tx-hash 0xc4e5…` → settle tx `0x1c9788e5…6a4f` (epoch 1, root `0x3dd56cf1…41a4`); `/v1/account` showed the order (fields `id,owner,side,tenorId,remaining,collateral,expiresAtEpoch,blobHash`, no rate), usdFree 350, usdReserved 250. H1 heartbeat → `0x01174264…05b1` (epoch 2, root `0x08916d82…50a3`). Indexer recorded both `EpochSettled`, accumulator check OK, no `E_*` in the server log. The bid rate appears nowhere in the SQLite DB. |
+
+## Phase 5 log
+
+| Run | Result | Evidence |
+|---|---|---|
+| Gate 5, run 1 | FAIL (fixed) | Scenarios 1–6 passed on chain; after the scenario-6 restore the server came back at genesis (WAL data lost by copying only the `.db` file) so 7–8 didn't run, and the audit's secret scan found the server bearer key in `--engine-logs` output (O-16). Fixes: `VACUUM INTO` backup + WAL-aware restore, server checkpoints on SIGTERM, capture with `-v` only, key rotated. |
+| Gate 5, run 2 (`set -a; . settler/.env; set +a; bun scripts/demo/run-all.ts`) | **PASS** 2026-10-04 | Fresh core `0x062836764f4B81B34D4BCe5DfeA100D96061B6b8`. E1 `0x7bee003a…3467`: `Cleared(1, 2, 527, 1000e6)`, Chidi's 1,000 still open, loan #1 owed 1,000.001003. E2 `0xe549c5fd…01ed`: garbage blob rejected (E_DECRYPT), loan #2 at 527. E3 `0x3e8e1dd5…d4c8`: Bola +150.000151 (= owed), Ada repaidVolume 150. E4 `0xbe5fc995…0cae`: liquidation Ada +0.348333682711666668, Bola +0.232222455141111111, treasury +0.030555586202777777, Dayo back 0.238888275944444444 tETH; Bola's 500 request paid 150.000151. Tamper → `E_ROOT_MISMATCH`, no tx. Forged report → `InvalidSender`. `verifyAccount` true for Ada (tier 0, repaid 150) and Bola. Escape: Chidi `exitAccount` with a server proof → +1,000 tUSD. Leak audit: 0 hits for 413/611/552/593 in 6 logs, 27 DB rows, 14 txs; 527 only as the clearing rate; 0 secrets. |

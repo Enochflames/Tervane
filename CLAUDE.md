@@ -156,8 +156,9 @@ cre workflow simulate settle --target staging-settings --non-interactive \
 # web
 cd web && bun install && bun run dev
 
-# demo
-bun scripts/demo/00-preflight.ts
+# demo (verified Phase 5) — Gate 5 in one command: fresh deploy, scenarios 1–8, leak audit (~20 min incl. ESCAPE_DELAY)
+set -a; . settler/.env; set +a; bun scripts/demo/run-all.ts
+bun scripts/demo/00-preflight.ts                   # before recording (server running, fresh deployment)
 ```
 
 ---
@@ -178,6 +179,8 @@ A feature is done when: the spec section it implements is cited in the PR/commit
 - **zod `.url()` doesn't work in the workflow** (QuickJS has no `URL` global): config validation fails at engine start. Validate URLs with a regex.
 - **A forwarder SUCCESS can hide a receiver revert.** Check `receiverContractExecutionStatus` as well as `txStatus` (O-13).
 - **Foundry's monad gas numbers run ~2× high** vs Monad testnet for `_processReport` (O-15). Calibrate gas limits from on-chain traces.
+- **Never run the simulator with `--engine-logs` on screen or into shared logs.** Its fake HTTP capability logs full requests, including the server bearer key (O-16). Use `-v`.
+- **SQLite in WAL mode: back up with `VACUUM INTO`, not by copying the `.db` file.** A killed process leaves data in `-wal`; the server checkpoints and closes on SIGTERM.
 - **Workspace imports.** `settler/settle` is a root workspace member and imports `@tervane/core` via `workspace:*`; `cre-compile` typechecks core with the settler's tsconfig, so relative imports inside core are extensionless (D-18).
 - **`MockKeystoneForwarder` delivers no workflow metadata.** In simulation, do not configure `setExpectedWorkflowId/Author/Name` on `TervaneCore`, or every report reverts. Production deploy re-points the forwarder and sets the workflow id.
 - **Inside `handlerInTee`, use `new HTTPClient().sendRequest(teeRuntime, …)`.** `ConfidentialHTTPClient` has no `TeeRuntime` overload. Chain reads and writes go through `runtime.usingTheDons()` and are not confidential (they don't need to be).
