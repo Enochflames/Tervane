@@ -137,8 +137,10 @@ cd contracts && forge build && forge test          # parity vs core vectors, uni
 forge test --match-contract GasTest -vv            # gas figures for writeGasLimit
 # deploy: see CONTRACTS.md §6 (DEPLOYER_PK from settler/.env, --gas-estimate-multiplier 115)
 
-# server
-cd server && bun install && bun run dev          # :8787
+# server (verified Phase 4)
+cd server && bun test                              # fake chain + real runEpoch as the enclave
+set -a; . settler/.env; set +a; export INTERNAL_API_KEY="$TERVANE_SERVER_API_KEY"; unset CRE_ETH_PRIVATE_KEY TERVANE_ENCLAVE_SK
+cd server && bun src/main.ts                       # :8787; then: bun scripts/dev/gate4.ts (full loop on testnet)
 
 # settler (verified Phase 3) — config from deployments JSON, unit tests, then simulate
 bun scripts/gen-settler-config.ts                  # writes settler/settle/config.{staging,production}.json
@@ -181,5 +183,7 @@ A feature is done when: the spec section it implements is cited in the PR/commit
 - **Inside `handlerInTee`, use `new HTTPClient().sendRequest(teeRuntime, …)`.** `ConfidentialHTTPClient` has no `TeeRuntime` overload. Chain reads and writes go through `runtime.usingTheDons()` and are not confidential (they don't need to be).
 - **Log-trigger addresses and topics must be base64** via `hexToBase64()`; indexed topic values must be padded to 32 bytes first.
 - **Quotas that shape the design:** 15 HTTP calls, 15 chain reads, 5 secret fetches per execution; HTTP request ≤ 120 KB and response ≤ 250 KB; report ≤ 50 KB; execution ≤ 5 min; WASM memory 100 MB; log event ≤ 5 KB. The state-diff protocol and the inbox page size exist because of these.
+- **Monad's public RPC caps `eth_getLogs` at 100 blocks** (HTTP 413, `-32614`). Index in ≤ 100-block ranges; a server catching up from an old deploy block makes thousands of requests.
+- **Losing the server's state is real.** Epochs settled without the server storing their states can't be rebuilt by anyone (intents are encrypted); only the escape hatch helps. Never settle through a throwaway stub on a deployment you intend to keep (D-24).
 - **Monad nodes don't serve arbitrary historical state.** The server indexes logs forward from the deploy block and keeps its own copy; never design a flow that needs `eth_call` at an old block.
 - **Confidential Workflows is a private beta.** Simulation works without enrollment; production deploy needs it. Request access early (form linked from the CRE docs) but never block on it.

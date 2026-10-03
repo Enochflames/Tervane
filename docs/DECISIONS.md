@@ -95,6 +95,13 @@ Term-loan semantics; early repayment pays full `owed`. Revenue comes only from t
 - The entry module exports only `main()`; Javy rejects exported functions with parameters. zod `.url()` fails in QuickJS (no `URL` global), so URLs are validated by regex.
 - Gate 3 evidence and two extra real epochs are in the spike-style log below (Phase 3 log).
 
+### D-24 Server implementation choices (Phase 4)
+- **Chain-root promotion.** `GET /internal/epoch-input` first reads `settlementState()` (latest block) and promotes a pending state whose root the chain already holds; the indexer still records `EpochSettled`/`Cleared` and commits idempotently. Back-to-back epochs no longer race the indexer.
+- **Verify before idempotency.** `POST /internal/epoch-output` applies and re-hashes every diff before treating a known `newRoot` as a repeat (a test caught the earlier order returning 200 for a tampered diff).
+- **Indexer.** Finalized blocks only (equal to latest on Monad testnet today), ≤ 100-block `eth_getLogs` ranges adapting on error, contiguous inbox (a gap rolls back the range), local accumulator in `inbox.acc` cross-checked against `inboxAcc(idx)` every 20 polls.
+- **Keys.** The server runs with only `INTERNAL_API_KEY` (= settler `TERVANE_SERVER_API_KEY`); signing keys are unset in its environment.
+- **Redeploy for Phase 4.** The Gate 3 deployment's epochs were settled through an in-memory stub, so no server can rebuild their states (epoch 2 holds an intent only the enclave can read): exactly the data-availability case the escape hatch covers. Phase 4 runs on a fresh deployment; the old one is archived in `deployments/archive/monad-testnet-gate3.json`. New (2026-10-03): `TervaneCore` `0x30Ce2CCA1B16449F5F2D35023AD936B398Fef7FA`, tUSD `0xbAD6B5c5524c0792457CFB2490F738dd7D61CdC5`, tETH `0x48c1B34e159C11aef76716BB31E2c05a09cc4783`, feed `0xCC681AF3f4423b570D65b47D0a34B406eDCC2Ac8`, deploy block 67938262; all Sourcify `exact_match`.
+
 ---
 
 ## Proposed (P1)
@@ -144,3 +151,9 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 | Gate 3: genesis + one hand-crafted deposit, `cre workflow simulate settle --target staging-settings --non-interactive --trigger-index 1 --broadcast` | **PASS** 2026-10-03 | Deposit tx `0x2e819592…4e63` (inbox #1). Settle tx `0x5521583520862087d6e11f1f6eeb0955f8857f0e73d7d19f9a34a019f6817a9f` (block 67815051, status 1). `lastEpoch` 0→1, `cursor` 1. Onchain `stateRoot` `0x220f84e6…bd65` == root recomputed by `packages/core` (`scripts/dev/check-root.ts`) == root the stub server rebuilt from the diff. |
 | H0 log trigger with a real ECIES intent, `--trigger-index 0 --evm-tx-hash 0x8283afa8…efc4 --evm-event-index 0 --broadcast` | **PASS** | Intent encrypted to the onchain `enclavePubKey`; decrypted inside the handler; order created (0 rejected). Settle tx `0x7e88b17b…93d5`, epoch 2. |
 | H1 idle heartbeat with calibrated gas | **PASS** | Settle tx `0x685c1daa…90fa`, epoch 3; limit 162,322 vs 127,434 real (27% headroom). Server state holds the open order with no rate field. |
+
+## Phase 4 log
+
+| Run | Result | Evidence |
+|---|---|---|
+| Gate 4 (`bun scripts/dev/gate4.ts`, real server + fresh deployment) | **PASS** 2026-10-03 | Server root == chain root at genesis, after H0 and after H1. Deposit + LEND intent (tx `0xc4e50ec5…d33e`) indexed as inbox #1..#2. H0 `--evm-tx-hash 0xc4e5…` → settle tx `0x1c9788e5…6a4f` (epoch 1, root `0x3dd56cf1…41a4`); `/v1/account` showed the order (fields `id,owner,side,tenorId,remaining,collateral,expiresAtEpoch,blobHash`, no rate), usdFree 350, usdReserved 250. H1 heartbeat → `0x01174264…05b1` (epoch 2, root `0x08916d82…50a3`). Indexer recorded both `EpochSettled`, accumulator check OK, no `E_*` in the server log. The bid rate appears nowhere in the SQLite DB. |
