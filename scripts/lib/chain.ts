@@ -30,6 +30,7 @@ async function send(account: Account, address: Hex, abi: never, functionName: st
   return hash
 }
 
+export const faucet = (user: Account, token: Hex) => send(user, token, erc20Abi as never, 'faucet', [], 150_000n)
 export const mint = (owner: Account, token: Hex, to: Hex, amount: bigint) => send(owner, token, erc20Abi as never, 'mint', [to, amount], 120_000n)
 export async function deposit(user: Account, asset: 0 | 1, amount: bigint) {
   await send(user, asset === 0 ? dep.usdToken : dep.ethToken, erc20Abi as never, 'approve', [dep.tervaneCore, amount], 80_000n)
