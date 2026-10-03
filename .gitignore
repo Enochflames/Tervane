@@ -21,3 +21,6 @@ spikes/
 # os / editor
 .DS_Store
 package-lock.json
+
+# dev stub data
+scripts/dev/.data/
