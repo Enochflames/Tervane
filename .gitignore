@@ -20,3 +20,4 @@ spikes/
 
 # os / editor
 .DS_Store
+package-lock.json
