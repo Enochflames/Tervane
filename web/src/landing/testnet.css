@@ -1,0 +1,107 @@
+.tn {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--s-7);
+  align-items: start;
+}
+
+.tn-run {
+  border-top: 1px solid var(--rule-strong);
+}
+
+.tn-run li {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'step what tx'
+    'step result tx';
+  gap: 2px var(--s-4);
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tn-step {
+  grid-area: step;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  padding-top: 2px;
+}
+
+.tn-what {
+  grid-area: what;
+  color: var(--ink);
+}
+
+.tn-result {
+  grid-area: result;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.tn-tx {
+  grid-area: tx;
+  align-self: center;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  border-radius: 4px;
+  transition: color var(--dur-fast) ease;
+}
+
+.tn-contracts {
+  padding: var(--s-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+
+.tn-contracts dl {
+  margin-top: var(--s-4);
+}
+
+.tn-contracts dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--rule);
+  font-size: var(--text-sm);
+}
+
+.tn-contracts dt {
+  color: var(--ink-2);
+}
+
+.tn-contracts dd a {
+  color: var(--muted);
+  transition: color var(--dur-fast) ease;
+}
+
+.tn-fine {
+  margin-top: var(--s-4);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tn-tx:hover,
+  .tn-contracts dd a:hover {
+    color: var(--accent);
+  }
+}
+
+@media (max-width: 960px) {
+  .tn {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .tn-run li {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'step' 'what' 'result' 'tx';
+  }
+  .tn-tx {
+    justify-self: start;
+    margin-top: var(--s-1);
+  }
+}

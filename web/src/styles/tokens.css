@@ -1,0 +1,109 @@
+/* Tervane design tokens.
+   Paper and ink, one accent (sealing-wax vermilion), three typefaces with fixed roles:
+   Instrument Serif for display, Geist for interface text, Geist Mono for every number, address and hash. */
+
+:root {
+  /* colour — light */
+  --paper: #f5f4ef;
+  --surface: #fbfaf7;
+  --surface-2: #efede6;
+  --ink: #121211;
+  --ink-2: #33332f;
+  --muted: #6f6e67;
+  --faint: #a3a198;
+  --rule: #e2e0d8;
+  --rule-strong: #cdcac0;
+  --accent: #c2410c;
+  --accent-ink: #9a3412;
+  --accent-wash: #f7e6dc;
+  --positive: #2f6b3f;
+  --focus: #c2410c;
+  --selection: #f3d5c4;
+
+  /* type */
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-xs: 0.75rem;     /* 12 */
+  --text-sm: 0.8125rem;   /* 13 */
+  --text-base: 1rem;      /* 16 */
+  --text-md: 1.0625rem;   /* 17 */
+  --text-lg: 1.25rem;     /* 20 */
+  --display-sm: clamp(2rem, 1.4rem + 2.2vw, 2.875rem);
+  --display-md: clamp(2.5rem, 1.6rem + 3.4vw, 4rem);
+  --display-lg: clamp(3rem, 1.5rem + 5.6vw, 6rem);
+
+  /* space (4px base) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+  --s-10: 144px;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --container: 1180px;
+  --gutter: 24px;
+
+  /* motion (emil-design-eng): strong custom curves, UI under 300 ms */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-press: 140ms;
+  --dur-fast: 180ms;
+  --dur-ui: 240ms;
+  --dur-reveal: 700ms;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 16px;
+  }
+}
+
+/* colour — dark (system), unless the user picked light */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #0f0f0e;
+    --surface: #161614;
+    --surface-2: #1d1d1a;
+    --ink: #edebe4;
+    --ink-2: #c9c7bf;
+    --muted: #8d8b83;
+    --faint: #5f5e58;
+    --rule: #262522;
+    --rule-strong: #34332f;
+    --accent: #f0703f;
+    --accent-ink: #ff9466;
+    --accent-wash: #2a1a12;
+    --positive: #7fbf8f;
+    --focus: #f0703f;
+    --selection: #4a2614;
+  }
+}
+
+/* colour — dark (explicit) */
+:root[data-theme='dark'] {
+  --paper: #0f0f0e;
+  --surface: #161614;
+  --surface-2: #1d1d1a;
+  --ink: #edebe4;
+  --ink-2: #c9c7bf;
+  --muted: #8d8b83;
+  --faint: #5f5e58;
+  --rule: #262522;
+  --rule-strong: #34332f;
+  --accent: #f0703f;
+  --accent-ink: #ff9466;
+  --accent-wash: #2a1a12;
+  --positive: #7fbf8f;
+  --focus: #f0703f;
+  --selection: #4a2614;
+}
