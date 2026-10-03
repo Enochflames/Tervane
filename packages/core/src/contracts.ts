@@ -16,6 +16,7 @@ export const coreAbi = parseAbi([
   'event EpochSettled(uint64 indexed epoch, bytes32 newRoot, uint64 inboxTo, uint64 asOf, int256 priceUsed)',
   'event Cleared(uint64 indexed epoch, uint8 indexed tenorId, uint32 rateBps, uint256 volume)',
   'event PayoutExecuted(uint64 indexed epoch, address indexed to, uint8 asset, uint256 requested, uint256 paid)',
+  'event EscapeActivated(uint64 at)',
 ])
 
 export const feedAbi = parseAbi([
