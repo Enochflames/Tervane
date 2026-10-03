@@ -45,6 +45,12 @@ export class Db {
     this.sql.exec(SCHEMA)
   }
 
+  /** Checkpoints the WAL into the main file and closes (called on SIGTERM/SIGINT). */
+  close() {
+    this.sql.exec('PRAGMA wal_checkpoint(TRUNCATE);')
+    this.sql.close()
+  }
+
   tx<T>(fn: () => T): T {
     return this.sql.transaction(fn)()
   }
