@@ -1,0 +1,363 @@
+.app {
+  min-height: 100dvh;
+}
+
+/* ── top bar ────────────────────────────────────────────── */
+.app-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  box-shadow: 0 1px 0 var(--rule);
+}
+
+.app-top-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  height: 60px;
+}
+
+.app-brand {
+  flex: none;
+  border-radius: 6px;
+}
+
+.app-nav {
+  display: flex;
+  gap: 2px;
+  margin-left: var(--s-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.app-nav a {
+  position: relative;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  transition:
+    color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+}
+
+.app-nav a.active {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.app-nav a.app-nav-escape {
+  color: var(--accent-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-nav a:hover {
+    color: var(--ink);
+  }
+}
+
+.app-top-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-left: auto;
+}
+
+.netst {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.netst-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--positive);
+}
+
+.netst[data-escape='true'] .netst-dot {
+  background: var(--accent);
+}
+
+.netst-sep {
+  color: var(--faint);
+}
+
+.acct {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+  transition:
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-press) var(--ease-out);
+}
+
+.acct:active {
+  transform: scale(0.97);
+}
+
+.acct-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--positive);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .acct:hover {
+    box-shadow: inset 0 0 0 1px var(--ink-2);
+  }
+}
+
+@media (max-width: 900px) {
+  .netst {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-top-inner {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: var(--s-3);
+    row-gap: var(--s-2);
+  }
+  .app-nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* ── page scaffolding ───────────────────────────────────── */
+.app-main {
+  padding-block: var(--s-7) var(--s-9);
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+.page-head h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--display-sm);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.page-head p {
+  margin-top: var(--s-2);
+  max-width: 62ch;
+  color: var(--ink-2);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.grid-form {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: var(--text-sm);
+}
+
+.xs {
+  font-size: var(--text-xs);
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.local-tag {
+  font-size: var(--text-xs);
+  color: var(--positive);
+}
+
+@media (max-width: 900px) {
+  .grid-2,
+  .grid-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── gate ───────────────────────────────────────────────── */
+.gate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  max-width: 560px;
+  padding: var(--s-7) 0;
+}
+
+.gate h2 {
+  font-size: var(--display-sm);
+}
+
+.gate p {
+  color: var(--ink-2);
+}
+
+.gate-fine {
+  font-size: var(--text-sm);
+  color: var(--muted) !important;
+}
+
+.ledgerst {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.ledgerst-err {
+  color: var(--accent-ink);
+}
+
+/* ── segmented in forms ─────────────────────────────────── */
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* ── progress (credit) ──────────────────────────────────── */
+.bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ink);
+  transform-origin: left center;
+  transition: transform 600ms var(--ease-out);
+}
+
+/* ── intent status timeline ─────────────────────────────── */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: var(--s-3);
+  padding-bottom: var(--s-4);
+  font-size: var(--text-sm);
+}
+
+.timeline li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: 0;
+  width: 1px;
+  background: var(--rule-strong);
+}
+
+.timeline li:last-child::before {
+  display: none;
+}
+
+.timeline-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1.5px var(--faint);
+  background: var(--surface);
+}
+
+.timeline li[data-state='done'] .timeline-dot {
+  background: var(--ink);
+  box-shadow: none;
+}
+
+.timeline li[data-state='active'] .timeline-dot {
+  background: var(--accent);
+  box-shadow: none;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+.timeline li[data-state='failed'] .timeline-dot {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.timeline-text strong {
+  font-weight: 500;
+}
+
+.timeline-text p {
+  color: var(--muted);
+}
