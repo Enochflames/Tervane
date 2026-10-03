@@ -109,6 +109,13 @@ Term-loan semantics; early repayment pays full `owed`. Revenue comes only from t
 - **Audit:** bids checked in decimal/percent/hex/uint32-BE across simulator output (`-v`), server log, DB (exact values; ciphertext excluded), calldata and event words of every run tx; any secret value in captured output fails the audit (that check found O-16).
 - **Gas calibration (D-22):** an epoch with one payout used 179,496 gas (`_processReport` 99,116 vs 48,894 idle, so ≈ 50k per payout, matching `perPayout`); a clearing epoch 130,903. Limits left 25–29% headroom.
 
+### D-26 Web client (Phase 6)
+- **Stack:** React 19 + Vite 8, wagmi 3 (`useConnection`, `mutateAsync`; injected connector, so no WalletConnect project id) + viem, React Query. The `/app` tree is lazy-loaded so the landing page doesn't ship wagmi; its dependencies are pre-bundled in `optimizeDeps` to avoid Vite's mid-session re-optimisation on first visit.
+- **Encryption path exactly per §2:** key read from TervaneCore and validated (`validateEnclavePubKey`: 33 bytes, 02/03, on-curve); nonce `max(server, local) + 1` persisted before sending; core `encodePayload` + `encryptIntent` with AAD bound to the connected account; explicit gas limits on every write; the receipt's inbox index stored with the user's rate under `chainId:core:account`.
+- **Signed ledger view:** the EIP-712 signature (valid ±300 s) is explained before it is requested, kept for its lifetime in memory and `sessionStorage` (per tab, read-only capability) so reloads don't re-prompt.
+- **Pre-checks before gas:** balance, tier cap, opening ratio at the feed price, order/loan existence (same rules as §12 step 3).
+- **Verified end to end on Monad testnet** (core `0x928cd03Fab678558217810dC2c68a4235b044464`) by driving the real app in Chrome with an injected EIP-1193 test wallet: connect → faucet → approve + deposit → epoch → signed ledger view → lend sealed in the browser → second wallet borrows → epoch 2 `intents=2 rejected=0 fills=1 clears=1` (the browser ciphertext decrypted and matched) → Positions/Market/Credit (`verifyAccount → true`) → cancel + withdrawal from the UI → epoch 3 `payouts=1`, 100 tUSD arrived.
+
 ---
 
 ## Proposed (P1)
