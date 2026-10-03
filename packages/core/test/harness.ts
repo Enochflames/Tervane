@@ -78,7 +78,7 @@ export class Harness {
   cursor = 0n
   readonly outputs: EpochOutput[] = []
 
-  constructor(readonly cipher: Cipher = fakeCipher()) {
+  constructor(public cipher: Cipher = fakeCipher()) {
     this.stateRoot = merkleRoot(this.state)
   }
 

@@ -141,6 +141,13 @@ export function messageFromJson(v: unknown): InboxMessage {
   }
 }
 
+/** Server side: body of `GET /internal/epoch-input` (CRE-WORKFLOW §5). */
+export function encodeEpochInput(x: { prev: LedgerState; inboxTo: bigint; messages: readonly InboxMessage[]; openOrderBlobs: ReadonlyMap<bigint, Hex> }): string {
+  const blobs: Record<string, Hex> = {}
+  for (const [id, b] of [...x.openOrderBlobs].sort((a, b) => (a[0] < b[0] ? -1 : 1))) blobs[str(id)] = b
+  return JSON.stringify({ prev: stateToJson(x.prev), inboxTo: str(x.inboxTo), messages: x.messages.map(messageToJson), openOrderBlobs: blobs })
+}
+
 export interface EpochInputJson {
   prev: LedgerState
   inboxTo: bigint

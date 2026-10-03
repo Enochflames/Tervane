@@ -379,6 +379,8 @@ runEpoch(prev, msgs, openOrderBlobs, price, asOf, params):
  0. newEpoch = prev.meta.epoch + 1
  1. Verify: merkleRoot(prev) == onchain.stateRoot; inbox accumulator (§4); blob hashes.
  2. Expire: delete orders with expiresAtEpoch != 0 && expiresAtEpoch < newEpoch; release reserves.
+    Then, for each remaining open order (id asc): decrypt its blob with the order owner as AAD sender;
+    if it no longer decrypts (enclave key rotated), release reserves and delete it as if cancelled (D-20).
  3. Ingest msgs in index order:
       DEPOSIT  → free[asset] += amount
       WITHDRAW → paid = min(amount, free[asset]); free[asset] -= paid; payouts.push({to, asset, requested: amount, paid})

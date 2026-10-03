@@ -8,6 +8,10 @@ export type FatalCode =
   | 'E_PRICE'
   | 'E_INVARIANT'
   | 'E_DECODE'
+  | 'E_CHAIN'
+  | 'E_SERVER'
+  | 'E_SERVER_POST'
+  | 'E_WRITE'
 
 export type IntentCode =
   | 'E_DECRYPT'

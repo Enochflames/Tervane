@@ -119,6 +119,8 @@ export interface EpochStats {
   intents: number
   rejected: Partial<Record<IntentCode, number>>
   expired: number
+  /** Open orders released because their blob no longer decrypts (key rotation). */
+  stranded: number
   fills: number
   clears: number
   repays: number
@@ -151,7 +153,7 @@ export function runEpoch(input: EpochInput): EpochOutput {
   const clears: Clear[] = []
   const rates = new Map<bigint, number>() // order id → decrypted bid/max rate; never leaves this function
   const stats: EpochStats = {
-    ingested: 0, deposits: 0, withdrawals: 0, intents: 0, rejected: {}, expired: 0,
+    ingested: 0, deposits: 0, withdrawals: 0, intents: 0, rejected: {}, expired: 0, stranded: 0,
     fills: 0, clears: 0, repays: 0, liquidations: 0,
   }
   const reject = (c: IntentCode) => { stats.rejected[c] = (stats.rejected[c] ?? 0) + 1 }
@@ -168,9 +170,14 @@ export function runEpoch(input: EpochInput): EpochOutput {
     rates.delete(o.id)
   }
 
-  // 2. Expire orders.
+  // 2. Expire orders; release orders whose blob no longer decrypts (enclave key rotated, D-20).
+  //    Blob hashes were verified in step 1, so the server cannot strand an order on purpose.
   for (const o of sortedOrders(s)) {
-    if (o.expiresAtEpoch !== 0n && o.expiresAtEpoch < newEpoch) { releaseOrder(o); stats.expired++ }
+    if (o.expiresAtEpoch !== 0n && o.expiresAtEpoch < newEpoch) { releaseOrder(o); stats.expired++; continue }
+    const pt = decrypt(hexToBytes(input.openOrderBlobs.get(o.id)!), o.owner)
+    const x = pt && decodePayload(bytesToHex(pt))
+    if (!x) { releaseOrder(o); stats.stranded++; continue }
+    rates.set(o.id, x.rateBps)
   }
 
   // 3. Ingest in index order.
@@ -265,14 +272,8 @@ export function runEpoch(input: EpochInput): EpochOutput {
 
   // 4. Auction per tenor ascending.
   const rateOf = (o: Order): number => {
-    let r = rates.get(o.id)
-    if (r === undefined) {
-      const pt = decrypt(hexToBytes(input.openOrderBlobs.get(o.id)!), o.owner)
-      const x = pt && decodePayload(bytesToHex(pt))
-      if (!x) throw new TervaneError('E_INVARIANT', `stored order ${o.id} does not decrypt`)
-      r = x.rateBps
-      rates.set(o.id, r)
-    }
+    const r = rates.get(o.id)
+    if (r === undefined) throw new TervaneError('E_INVARIANT', `no rate for order ${o.id}`)
     return r
   }
 

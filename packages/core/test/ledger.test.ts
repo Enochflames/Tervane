@@ -204,6 +204,25 @@ describe('epoch transition', () => {
     expect(out.report.clears).toEqual([{ tenorId: 0, rateBps: 100, volume: USD(1000) }])
   })
 
+  test('enclave key rotation releases stranded open orders instead of halting (D-20)', () => {
+    const h = new Harness(eciesCipher())
+    h.deposit(ADA, ASSET_USD, USD(100))
+    h.deposit(DAYO, ASSET_ETH, 10n ** 18n)
+    h.intent(ADA, lend(1n, 0, 500, USD(40)))
+    h.intent(DAYO, payload({ action: ACTION_BORROW, nonce: 1n, rateBps: 400, amount: USD(100), collateral: 10n ** 17n }))
+    h.settle({ price: P2500, asOf: T0 })
+    expect(h.state.orders.size).toBe(2)
+    h.cipher = eciesCipher(hexToBytes(keccak256(toHex('rotated-key'))))
+    h.intent(ADA, lend(2n, 0, 450, USD(10)))      // encrypted to the new key
+    const out = h.settle({ price: P2500, asOf: T0 + 30n })
+    expect(out.stats.stranded).toBe(2)
+    expect([...out.state.orders.keys()]).toEqual([5n])
+    const ada = out.state.accounts.get(ADA)!
+    expect([ada.usdFree, ada.usdReserved]).toEqual([USD(90), USD(10)])
+    const dayo = out.state.accounts.get(DAYO)!
+    expect([dayo.ethFree, dayo.ethReserved]).toEqual([10n ** 18n, 0n])
+  })
+
   test('applyDiff reproduces the enclave root; codecs round-trip', () => {
     const h = demoBook()
     let server = h.state

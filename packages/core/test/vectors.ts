@@ -8,8 +8,9 @@ import {
   ACTION_BORROW, ACTION_CANCEL, ACTION_LEND, ACTION_REPAY, KIND_DEPOSIT, KIND_INTENT, KIND_WITHDRAW, ZERO32, accStep,
   accountInner, addr, buildAad, buildLevels, decryptIntent, deriveKey, encodePayload, encodeReport, encryptIntent,
   isLiquidatable, lendersHash, liquidationAmounts, loanInner, metaInner, msgHash, openRatioOk, orderInner, owedFor,
-  leafFromInner, proofFromLevels, runAuction, split, type Account, type Hex, type IntentPayload, type Loan,
-  type Order, type SettlementReport,
+  leafFromInner, proofFromLevels, runAuction, split, genesisState, merkleRoot, stateLeaves, accountLeaf, loanLeaf,
+  stateToJson, assertInvariants, type Account, type Hex, type IntentPayload, type LedgerState, type Loan, type Order,
+  type SettlementReport,
 } from '../src'
 
 const label = (s: string) => hexToBytes(keccak256(toHex(s)))
@@ -222,7 +223,50 @@ function report() {
   return { reportVersion: 1, report: r, encoded: encodeReport(r) }
 }
 
-export const VECTORS = { inbox, payload: payloads, ecies, leaves, tree, auction, liquidation, report } as const
+// ── genesis.json ────────────────────────────────────────────
+function genesis() {
+  const s = genesisState()
+  return { meta: s.meta, root: merkleRoot(s) }
+}
+
+// ── escape.json ─────────────────────────────────────────────
+/** The demo ledger after epoch 1 (DEMO-SCRIPT §2) with fixed blob hashes, plus root and per-leaf proofs. */
+function escape() {
+  const acct = (addr: Hex, x: Partial<Account>): Account => ({
+    addr, usdFree: 0n, usdReserved: 0n, ethFree: 0n, ethReserved: 0n, ethLocked: 0n, tier: 0, repaidVolume: 0n, nonce: 1n, ...x,
+  })
+  const s: LedgerState = {
+    meta: { epoch: 1n, cursor: 8n, nextLoanId: 2n },
+    accounts: new Map([
+      [ADA, acct(ADA, {})],
+      [BOLA, acct(BOLA, { usdReserved: USD(200) })],
+      [CHIDI, acct(CHIDI, { usdReserved: USD(1000) })],
+      [DAYO, acct(DAYO, { usdFree: USD(1000), ethLocked: 85n * 10n ** 16n })],
+    ]),
+    orders: new Map([
+      [6n, { id: 6n, owner: BOLA, side: 1, tenorId: 2, remaining: USD(200), collateral: 0n, expiresAtEpoch: 0n, blobHash: keccak256(toHex('escape/order-6')) }],
+      [7n, { id: 7n, owner: CHIDI, side: 1, tenorId: 2, remaining: USD(1000), collateral: 0n, expiresAtEpoch: 0n, blobHash: keccak256(toHex('escape/order-7')) }],
+    ]),
+    loans: new Map([[1n, { ...DEMO_LOAN }]]),
+  }
+  assertInvariants(s)
+  const levels = buildLevels(stateLeaves(s))
+  const deposits = [
+    { sender: ADA, asset: 0, amount: USD(600) }, { sender: BOLA, asset: 0, amount: USD(600) },
+    { sender: CHIDI, asset: 0, amount: USD(1000) }, { sender: DAYO, asset: 1, amount: 85n * 10n ** 16n },
+  ]
+  return {
+    note: 'Ledger matching the demo after epoch 1. Foundry funds TervaneCore with `deposits`, settles epoch 1 to `root`, then exercises the escape hatch.',
+    deposits, root: merkleRoot(s), state: stateToJson(s),
+    accounts: [...s.accounts.values()].map((a) => ({ account: a, leaf: accountLeaf(a), proof: proofFromLevels(levels, accountLeaf(a)) })),
+    loans: [...s.loans.values()].map((l) => ({
+      loan: { ...l, lenders: undefined, lendersHash: lendersHash(l.lenders) }, lenders: l.lenders,
+      leaf: loanLeaf(l), proof: proofFromLevels(levels, loanLeaf(l)),
+    })),
+  }
+}
+
+export const VECTORS = { inbox, payload: payloads, ecies, leaves, tree, auction, liquidation, report, genesis, escape } as const
 
 /** JSON with bigints as decimal strings, stable 2-space formatting. */
 export function toJson(v: unknown): string {
