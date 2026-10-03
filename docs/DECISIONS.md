@@ -58,15 +58,6 @@ Rates 413 / 527 / 611 / 552 bps replace 410 / 525 / 600 / 550, because 600 colli
 ### D-15 Interest is fixed for the full term; no protocol fee on interest
 Term-loan semantics; early repayment pays full `owed`. Revenue comes only from the 5% liquidation fee. Revisit if tier farming (THREAT-MODEL A7) needs a cost.
 
----
-
-## Proposed (P1)
-
-### D-12 Per-epoch outflow cap
-Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows a drain after a TEE compromise (THREAT-MODEL A4). Requires one more check in `_processReport` and a queueing rule in the enclave (excess requests stay pending to the next epoch).
-
----
-
 ### D-18 `settler/settle` is a Bun workspace member; core uses extensionless relative imports (from S6)
 **Context.** S6 showed `cre-compile` bundles `@tervane/core` through a Bun workspace link, but it typechecks core's sources with the settler's tsconfig (`moduleResolution: bundler`, no `allowImportingTsExtensions`). **Decision.** Add `settler/settle` to the root `workspaces` and depend on `"@tervane/core": "workspace:*"`; relative imports inside `packages/core` omit the `.ts` suffix (package subpath imports such as `@noble/curves/secp256k1.js` keep `.js`). **Consequences.** One install at the root; no relative-path import into core; CRE-WORKFLOW §3.5's fallback is not needed. *Accepted 2026-10-03 (go-ahead for Phase 1).*
 
@@ -80,6 +71,36 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 - Property tests use a test-only cipher with the same blob shape and sender binding (keccak tag instead of AES-GCM) so 10,000-case runs are fast; ECIES itself is covered by unit tests, `ecies.json`, and the demo-book tests, which run on real ECIES.
 - Core was re-proven in `cre workflow simulate`: the real `@tervane/core` compiled by `cre-compile` ran a full `runEpoch` (deposit + ECIES intent) in a TEE handler and produced root `0x2a6ea56b…49ebb4`, identical to Bun (38 ms in WASM).
 **Consequences.** CRE-WORKFLOW §4 should call `runEpoch({ …, decrypt: makeDecryptor(enclaveSk, 10143n, core), onchain: {…} })`.
+
+### D-20 Undecryptable open orders are released, not fatal
+**Context.** CONTRACTS.md §3 says that after an enclave key rotation "the settler treats undecryptable open orders as cancelled and releases reserves", but the Phase 1 `runEpoch` threw `E_INVARIANT`, which would halt settlement permanently and force the one-way escape hatch. **Decision.** §12 step 2 decrypts every open order after expiry; an order whose blob no longer decrypts is released (reserves back to free) and deleted, counted in `stats.stranded`. Safe because step 1 already verified `keccak(blob) == order.blobHash`, so the server cannot strand an order on purpose. **Consequences.** Key rotation cancels open orders instead of stopping the market; decryption of open orders moves from lazy (auction) to step 2 (≤ 200 × ~14 ms in WASM per S2). Approved 2026-10-03.
+
+### D-21 Contract implementation choices (Phase 2)
+- **Entry points lock after escape.** `deposit`, `submitIntent`, `requestWithdraw` revert `Escaped()` once `escaped` is set; otherwise tokens deposited after escape would be stranded (no report can credit them and no leaf proves them).
+- **Payout asset check.** A payout with `asset > 1` reverts `InvalidAsset()` (the enclave never emits one; D-19 makes the entry points reject such assets).
+- **Price round lookup.** `feed.getRoundData` is wrapped in try/catch: an unknown round maps to `PriceMismatch()`; `priceUsed <= 0` also maps to `PriceMismatch()`.
+- **Reentrancy.** OpenZeppelin `ReentrancyGuardTransient` (TSTORE verified on Monad testnet) on every token-moving function, including `_processReport`; state is fully updated before any transfer.
+- **Toolchain.** Solidity 0.8.30, `evm_version = "prague"` (an `eth_call` probe showed Monad testnet also executes Osaka's CLZ), via-IR (needed by the vector-parity tests' struct literals), OZ v5.4.0 + forge-std v1.17.0 as submodules.
+- **Treasury** is the deployer EOA for the demo, so it can `exitAccount`/`claim` its fees.
+- **Vectors added:** `genesis.json` (TS genesis root) and `escape.json` (demo ledger after epoch 1 with per-leaf proofs). Foundry settles epoch 1 to the TS root and proves exits, repay and liquidation against it; on-chain `escapeLiquidate` reproduces the DEMO-SCRIPT crash numbers to the wei and both escape paths drain the contract to exactly zero.
+- **Deployment (2026-10-03, Monad testnet, chain 10143):** `TervaneCore` `0xA6F7D304b1840fc353D3c68d70B0Ac2fc473359b` (tx `0x9623fbf3…3c21`, block 67808377), tUSD `0x1768d253BF7aA83e36230ca14366954B8C8C2872`, tETH `0x7296fC595fbd1A0B7fD8F5470cA1A3BCd4aFAE2f`, feed `0xf5fFACe4CB11355C61DC30f24407E830FaAb250a`; forwarder = mock `0xB9F7…d192`; all four Sourcify `exact_match`. Deploy cost ≈ 0.74 MON at 102 gwei. `onReport` from an EOA on the live contract reverts `InvalidSender(eoa, 0xB9F7…d192)`.
+
+### D-22 Per-epoch gas limit sized to the report (implemented Phase 3)
+**Context.** Monad charges the full gas limit (~102 gwei on testnet). A fixed limit sized for 32 payouts costs ≈ 0.22 MON per epoch even when idle. **Decision.** `writeGasLimit(report, bytes, params)` in `packages/core/src/gas.ts`: `1.2 × (base + perPayout·payouts + perClear·clears + perByte·(overheadBytes + reportBytes))`, capped at `max`; constants live in the settler config (`scripts/gen-settler-config.ts`). Calibrated on real broadcasts (Gate 3): intrinsic+calldata ≈ 39.7k, forwarder ≈ 40.4k, `_processReport` ≈ 48.9k → `base = 110500`; an idle epoch gets a 162,322 limit for 127,434 real use (27% headroom, ≈ 0.017 MON). `perPayout = 50000` stays a conservative upper bound until an epoch with payouts is traced (Phase 5). **Consequences.** ~10× cheaper heartbeats; a too-low limit only reverts the write, and the next trigger retries from the same onchain state.
+
+### D-23 Settler structure (Phase 3)
+- `settle/settle.ts` holds the epoch (`settleEpoch(io, cfg, trigger)`) over a `SettlerIO` port; `settle/main.ts` implements the port on the CRE runtime (`makeIO`) and registers H0 (log trigger, INTENT only) and H1 (cron), both `handlerInTee`. `main.test.ts` drives `settleEpoch` with a fake chain + fake server (the SDK 1.23 has a `TestTeeRuntime` class but exports no factory for it, O-14).
+- Secrets and server HTTP go through the TEE runtime; chain reads, report and write through `usingTheDons()` with public data only. Chain reads per epoch: 7; HTTP: 2; secret calls: 1.
+- A write counts as settled only if `txStatus == SUCCESS` **and** `receiverContractExecutionStatus == SUCCESS`; the forwarder can succeed while `_processReport` reverted.
+- The entry module exports only `main()`; Javy rejects exported functions with parameters. zod `.url()` fails in QuickJS (no `URL` global), so URLs are validated by regex.
+- Gate 3 evidence and two extra real epochs are in the spike-style log below (Phase 3 log).
+
+---
+
+## Proposed (P1)
+
+### D-12 Per-epoch outflow cap
+Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows a drain after a TEE compromise (THREAT-MODEL A4). Requires one more check in `_processReport` and a queueing rule in the enclave (excess requests stay pending to the next epoch).
 
 ---
 
@@ -95,6 +116,9 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 - **O-10 `cre init` template drift.** `hello-confidential-workflows-ts` pins `@chainlink/cre-sdk@1.18.0` / `viem@2.34.0` and ignores `--rpc-url`. Always re-pin to CLAUDE.md §4 versions and hand-write `project.yaml`.
 - **O-11 §5.2 nonce on E_BAD_ACTION.** §5.2 says "nonce still consumed if decryption succeeded", but the version/action check (step 2) runs before the nonce check (step 3), and an unknown version means the payload layout is unknown. Implemented: a step-2 failure consumes nothing (no nonce change, no account created); the nonce is consumed from step 3 onward. Confirm.
 - **O-12 Intents already expired on arrival.** A LEND/BORROW with `expiresAtEpoch != 0 && expiresAtEpoch < newEpoch` would otherwise join this epoch's auction and only be deleted next epoch. Implemented: rejected with `E_EXPIRED` (nonce consumed). Confirm.
+- **O-13 Receiver revert is invisible in `txStatus`.** CRE-WORKFLOW §4's skeleton only checked `w.txStatus`; the forwarder can return `TX_STATUS_SUCCESS` while the receiver reverted (`receiverContractExecutionStatus = REVERTED`). Fixed in the settler and in CRE-WORKFLOW §4 (D-23). The EVM `ReceiverContractExecutionStatus` enum is not re-exported from the SDK root (only the Solana one), so the settler uses its value 0 directly.
+- **O-14 SDK test utilities (installed SDK wins).** `@chainlink/cre-sdk@1.23.0` ships `TestTeeRuntime` and documents "construct via newTestTEERuntime", but no such factory is exported. TEE handlers are tested through the `SettlerIO` port instead (D-23).
+- **O-15 Foundry's monad gas model vs the chain.** `_processReport` with nothing to pay measured 101,608 gas in `forge test` (`network = "monad"`) but 48,894 on Monad testnet (trace of the Gate 3 tx). Size gas limits from on-chain traces, not Foundry numbers.
 - **O-5 Provenance.** Ghost Finance (`snehendu098/ghost`) is public prior art with the same concept and near-identical write-up text. Confirm the relationship. If it isn't Lycantho's, the README must cite it as prior art, and the write-up text must be original.
 
 ---
@@ -110,3 +134,13 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 | S5 HTTP from TEE runtime to local server | **PASS** | 2026-10-03 | Bun server on :8787 returns 200 only for `Bearer <S5_SERVER_API_KEY>` (48-char key from `.env`, fetched in-enclave via `getSecrets`). `new HTTPClient().sendRequest(teeRuntime, {url:'http://localhost:8787/ping', method:'GET', multiHeaders:{authorization:{values:['Bearer …']}}})` → `[USER LOG] S5 status=200 body=pong`; server log `GET /ping auth=bad -> 401` (curl without auth) then `auth=ok -> 200` (enclave). Plain `http://localhost` needed no `--allow-insecure-rpc`. Surprise: the `headers` field is **deprecated** in the installed SDK's HTTP request type ("use multi_headers"); CRE-WORKFLOW §4 uses `headers` → switch to `multiHeaders`. Simulation limits printed: HTTP req 120 kb / resp 250 kb / timeout 10 s. |
 | S6 workspace package bundles via `cre-compile` | **PASS** | 2026-10-03 | Mini-monorepo mirroring the target layout: root `workspaces: ["packages/core", "settler/settle"]`; `@tervane/core` (`exports: {".": "./src/index.ts"}`, deps noble 2.4.0 + viem) holds the S2 ECIES code; `settler/settle/package.json` depends on `"@tervane/core": "workspace:*"`. Bun 1.4.2 isolated install links `settle/node_modules/@tervane/core → packages/core`. `cre workflow simulate settle --target staging-settings --non-interactive --trigger-index 0` → `✓ Workflow compiled`, `[USER LOG] … match=true`. First attempt failed only on typecheck: `cre-compile` typechecks core's sources with the **settler's** tsconfig (`moduleResolution: bundler`, no `allowImportingTsExtensions`), so `export … from './ecies.ts'` is rejected. Forces: (1) `settler/settle` must be a root workspace member (proposed D-18); (2) relative imports inside `packages/core` are extensionless (package imports such as `@noble/curves/secp256k1.js` keep their `.js`). No relative-path fallback needed. |
 | S7 `cre workflow supported-chains` lists monad-testnet | **PASS** | 2026-10-03 | CLI v1.36.0, org `org_UspGxlYOcDPIg1Ae` (deploy access: not enabled). `cre workflow supported-chains --output json` → 58 chains incl. `{chainName: "monad-testnet", chainSelector: 2183018362218727504, address: 0xF8344CFd5c43616a4366C34E3EEE75af79a74482, mockAddress: 0xB9F79d863261869B234c481D1f9A7af84AeAd192}`. Both have code on chain 10143 (`cast code`: mock 4579 B, prod 8591 B). No `experimental-chains` needed. Surprise: JSON field `address` is the **production** forwarder; the mock is `mockAddress` (docs say `address`; see O-6). |
+
+---
+
+## Phase 3 log
+
+| Run | Result | Evidence |
+|---|---|---|
+| Gate 3: genesis + one hand-crafted deposit, `cre workflow simulate settle --target staging-settings --non-interactive --trigger-index 1 --broadcast` | **PASS** 2026-10-03 | Deposit tx `0x2e819592…4e63` (inbox #1). Settle tx `0x5521583520862087d6e11f1f6eeb0955f8857f0e73d7d19f9a34a019f6817a9f` (block 67815051, status 1). `lastEpoch` 0→1, `cursor` 1. Onchain `stateRoot` `0x220f84e6…bd65` == root recomputed by `packages/core` (`scripts/dev/check-root.ts`) == root the stub server rebuilt from the diff. |
+| H0 log trigger with a real ECIES intent, `--trigger-index 0 --evm-tx-hash 0x8283afa8…efc4 --evm-event-index 0 --broadcast` | **PASS** | Intent encrypted to the onchain `enclavePubKey`; decrypted inside the handler; order created (0 rejected). Settle tx `0x7e88b17b…93d5`, epoch 2. |
+| H1 idle heartbeat with calibrated gas | **PASS** | Settle tx `0x685c1daa…90fa`, epoch 3; limit 162,322 vs 127,434 real (27% headroom). Server state holds the open order with no rate field. |

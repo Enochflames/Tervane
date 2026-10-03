@@ -131,14 +131,19 @@ PROPERTY_RUNS=300 bun test                         # quick loop while developing
 bun run vectors                                    # regenerate test/vectors/*.json (commit with the change)
 bun run typecheck
 
-# contracts
-cd contracts && forge build && forge test -vvv
-forge script script/Deploy.s.sol --rpc-url monad_testnet --broadcast
+# contracts (verified Phase 2; addresses in deployments/monad-testnet.json)
+git submodule update --init --recursive            # contracts/lib: OZ v5.4.0, forge-std
+cd contracts && forge build && forge test          # parity vs core vectors, unit, escape, fuzz, invariants, gas
+forge test --match-contract GasTest -vv            # gas figures for writeGasLimit
+# deploy: see CONTRACTS.md §6 (DEPLOYER_PK from settler/.env, --gas-estimate-multiplier 115)
 
 # server
 cd server && bun install && bun run dev          # :8787
 
-# settler — simulate a single epoch from the cron handler, broadcasting to Monad testnet
+# settler (verified Phase 3) — config from deployments JSON, unit tests, then simulate
+bun scripts/gen-settler-config.ts                  # writes settler/settle/config.{staging,production}.json
+cd settler/settle && bun test                      # settleEpoch vs fake chain + fake server
+# server must be up on :8787 (Phase 3 used scripts/dev/stub-server.ts with settler/.env loaded)
 cd settler && cre workflow simulate settle --target staging-settings \
   --non-interactive --trigger-index 1 --broadcast
 
@@ -167,6 +172,10 @@ A feature is done when: the spec section it implements is cited in the PR/commit
 - **Monad charges gas on `gas_limit`, not gas used, and has no refunds.** Set `gasConfig.gasLimit` in `writeReport` deliberately (measure with Monad Foundry, add ~20%), not to a huge default. Receipts report `gasUsed == gasLimit`, so measure real usage with `debug_traceTransaction` (callTracer) or forge gas reports (S3: ≈109k used vs 300k charged). In simulation the report tx is sent and paid by the `CRE_ETH_PRIVATE_KEY` EOA.
 - **`writeReport` without `--broadcast` returns `TX_STATUS_SUCCESS` and no `txHash`.** Never substitute a zero hash; treat a missing hash as "no transaction".
 - **Log replay indices differ.** `--evm-event-index` is the log's position within the tx receipt; `EVMLog.index` in the payload is the block-level log index.
+- **CRE entry module exports only `main()`.** Javy fails with "Exported functions with parameters are not supported" if `main.ts` exports anything else with parameters.
+- **zod `.url()` doesn't work in the workflow** (QuickJS has no `URL` global): config validation fails at engine start. Validate URLs with a regex.
+- **A forwarder SUCCESS can hide a receiver revert.** Check `receiverContractExecutionStatus` as well as `txStatus` (O-13).
+- **Foundry's monad gas numbers run ~2× high** vs Monad testnet for `_processReport` (O-15). Calibrate gas limits from on-chain traces.
 - **Workspace imports.** `settler/settle` is a root workspace member and imports `@tervane/core` via `workspace:*`; `cre-compile` typechecks core with the settler's tsconfig, so relative imports inside core are extensionless (D-18).
 - **`MockKeystoneForwarder` delivers no workflow metadata.** In simulation, do not configure `setExpectedWorkflowId/Author/Name` on `TervaneCore`, or every report reverts. Production deploy re-points the forwarder and sets the workflow id.
 - **Inside `handlerInTee`, use `new HTTPClient().sendRequest(teeRuntime, …)`.** `ConfidentialHTTPClient` has no `TeeRuntime` overload. Chain reads and writes go through `runtime.usingTheDons()` and are not confidential (they don't need to be).

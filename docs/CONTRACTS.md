@@ -1,6 +1,6 @@
 # Tervane — Contracts (`contracts/`)
 
-Foundry project targeting Monad testnet. Use **Monad Foundry** (`foundryup --network monad`) so `forge test` runs with Monad's gas model (charged on gas limit, no refunds), 128 KB code size limit, and repriced cold access (account ~10,100, storage ~8,100 gas). Solidity `^0.8.26`, OpenZeppelin v5.
+Foundry project targeting Monad testnet. Use Foundry ≥ 1.8 with `network = "monad"` in `foundry.toml` (the old `foundryup --network monad` is ignored, O-7) so `forge test` runs with Monad's gas model (charged on gas limit, no refunds), 128 KB code size limit, and repriced cold access (account ~10,100, storage ~8,100 gas). Solidity 0.8.30, `evm_version = "prague"` (Monad testnet also accepts Osaka opcodes), via-IR, OpenZeppelin v5.4.0 and forge-std as git submodules under `contracts/lib`.
 
 ---
 
@@ -58,7 +58,7 @@ mapping(address => uint256) public claimEth;
 
 **Genesis root:** the root of a state containing only `META{epoch:0, cursor:0, nextLoanId:1}`. Compute it in TS, pass it to the constructor, and assert in a Foundry test that `TervaneLeaves.hashMeta(0,0,1) == genesisRoot` (single-leaf tree root = the leaf).
 
-Pack hot settlement fields into as few slots as possible (`lastEpoch`, `cursor`, `lastAsOf`, `lastSettleAt` fit in one slot with `escaped`; `lastPriceRoundId` with another). Cold SSTOREs are expensive on Monad.
+Pack hot settlement fields into as few slots as possible: `lastEpoch`, `cursor`, `lastAsOf`, `lastSettleAt` fill one slot (4 × 64 bits; `escaped` does not fit there), and `lastPriceRoundId`, `inboxCount`, `escaped` share a second. Cold SSTOREs are expensive on Monad. `lastSettleAt` is set at deploy so the escape clock starts then.
 
 ---
 
@@ -73,13 +73,13 @@ function submitIntent(bytes calldata blob) external;
 function requestWithdraw(uint8 asset, uint256 amount) external;
     // amount > 0; pendingWithdraw[sender][asset] += amount; _append(WITHDRAW, sender, asset, amount, 0, "")
 ```
-`_append` increments `inboxCount`, computes `msgHash` and `inboxAcc[i]` per PROTOCOL-SPEC §4, emits `InboxMessage`. Unit test it against `inbox.json`.
+`_append` increments `inboxCount`, computes `msgHash` and `inboxAcc[i]` per PROTOCOL-SPEC §4, emits `InboxMessage`. Unit test it against `inbox.json`. All three entry points revert `Escaped()` once escape is active (a deposit then would be stranded: no report can credit it and no leaf proves it, D-21).
 
 Gas: `submitIntent` writes one new slot (`inboxAcc[i]`) + updates `inboxCount`; calldata ~350 B. Measure with Monad Foundry and give the web client an explicit gas limit (users pay the limit, not usage).
 
 ### Report receiver
 ```solidity
-constructor(address forwarder, ...) ReceiverTemplate(forwarder) Ownable(msg.sender) { ... }
+constructor(address forwarder, ...) ReceiverTemplate(forwarder) { ... }   // ReceiverTemplate already calls Ownable(msg.sender)
 function _processReport(bytes calldata report) internal override;
 ```
 Implements PROTOCOL-SPEC §11 checks 1–10 in that order, each with a distinct custom error:
@@ -157,6 +157,21 @@ event Claimed(address indexed account, uint256 usd, uint256 eth);
 
 **Gas snapshots** (Monad Foundry): `deposit`, `submitIntent`, `requestWithdraw`, `_processReport` with 0/8/32 payouts and 0/3 clears. Feed the 32-payout number (+20%) into `config.writeGasLimit`.
 
+Measured 2026-10-03 (`test/Gas.t.sol`, `network = "monad"`; execution gas of the call, excluding intrinsic):
+
+| Call | Gas |
+|---|---|
+| `deposit` (first / warm user) | 165,818 / 131,819 |
+| `submitIntent` | 90,707 |
+| `requestWithdraw` | 113,089 |
+| `_processReport` 0 payouts, 0 / 3 clears | 101,608 / 111,735 |
+| `_processReport` 8 payouts, 0 / 3 clears | 503,658 / 513,785 |
+| `_processReport` 32 payouts, 3 clears (report 4,832 B) | 1,644,953 |
+
+Whole report tx ≈ `_processReport` + ~40k forwarder overhead (S3 trace) + 21k + calldata (report + ~1.1 KB of signatures/metadata).
+
+**On-chain calibration (Phase 3, O-15):** the Gate 3 trace shows `_processReport` at 48,894 gas on Monad testnet versus 101,608 in `forge test`, so Foundry's figures are upper bounds. The settler's D-22 constants are calibrated on chain (idle epoch: 127,434 real, 162,322 limit).
+
 ---
 
 ## 6. Deployment (`script/Deploy.s.sol`)
@@ -174,4 +189,11 @@ Order:
 [rpc_endpoints]
 monad_testnet = "${MONAD_TESTNET_RPC}"
 ```
-Verify contracts on Monadscan/MonadVision so judges can read the source.
+Run (key material only via env, never on the command line):
+```bash
+cd contracts
+set -a; . ../settler/.env; set +a; export DEPLOYER_PK="0x${CRE_ETH_PRIVATE_KEY#0x}"
+forge script script/Deploy.s.sol:Deploy --rpc-url monad_testnet --gas-estimate-multiplier 115 --broadcast --slow
+forge verify-contract --chain 10143 --verifier sourcify <addr> <path:Contract> --constructor-args <abi-encoded>
+```
+The script derives the 33-byte enclave public key from `TERVANE_ENCLAVE_SK` with `vm.createWallet` (cross-checked against noble). Verified on Sourcify (exact match), which MonadVision reads.

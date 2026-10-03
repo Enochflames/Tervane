@@ -101,7 +101,7 @@ For deployed workflows the two secrets move to the Vault DON (`cre secrets creat
   "treasuryAddress": "0x...",
   "serverUrl": "http://localhost:8787",
   "cronSchedule": "*/30 * * * * *",
-  "writeGasLimit": "1500000",
+  "writeGas": { "base": "110500", "perPayout": "50000", "perClear": "4000", "overheadBytes": "1100", "perByte": "16", "headroomBps": "12000", "max": "2500000" },
   "maxInboxPerEpoch": 200,
   "demoMode": true,
   "debugLogs": true
@@ -117,6 +117,8 @@ Dependencies: `@chainlink/cre-sdk@1.23.0`, `viem`, `zod`, `@noble/curves`, `@nob
 ## 4. `main.ts` skeleton
 
 This is a shape, not final code. Every SDK identifier below appears in the CRE docs/templates; still confirm against installed types.
+
+> **As built (Phase 3, D-23):** the epoch body below lives in `settle/settle.ts` as `settleEpoch(io, cfg, trigger)` over a `SettlerIO` port; `settle/main.ts` implements the port on the runtime and registers both handlers; only `main()` is exported (Javy). The write is checked on both `txStatus` and `receiverContractExecutionStatus` (O-13), and the gas limit is sized per report (D-22). Treat the code below as the reference for *what* happens, and the files for *how*.
 
 ```ts
 import {
@@ -209,9 +211,10 @@ function settle(runtime: TeeRuntime<Config>, triggerKind: "log" | "cron"): strin
     encoderName: "evm", signingAlgo: "ecdsa", hashingAlgo: "keccak256",
   }).result()
   const w = evm.writeReport(don, {
-    receiver: cfg.coreAddress, report, gasConfig: { gasLimit: cfg.writeGasLimit },
+    receiver: cfg.coreAddress, report, gasConfig: { gasLimit: writeGasLimit(out.report, reportBytes, cfg.writeGas).toString() },   // D-22
   }).result()
-  if (w.txStatus !== TxStatus.SUCCESS) throw new TervaneError("E_WRITE", String(w.txStatus))
+  // the forwarder can succeed while the receiver reverted (O-13): check both
+  if (w.txStatus !== TxStatus.SUCCESS || (w.receiverContractExecutionStatus ?? 0) !== 0) throw new TervaneError("E_WRITE", String(w.txStatus))
   dbg(`epoch=${out.report.epoch} msgs=${out.stats.ingested} fills=${out.stats.fills} liq=${out.stats.liquidations}`)
   return w.txHash ? bytesToHex(w.txHash) : "no-tx"   // dry-run simulation returns SUCCESS without a hash; never fabricate one
 }
