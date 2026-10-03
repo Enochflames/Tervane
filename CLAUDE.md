@@ -124,8 +124,12 @@ Use it as `/chainlink-cre-skill` for SDK questions. The CRE docs also ship a sin
 ## 6. Commands (fill in as they are verified)
 
 ```bash
-# core
-cd packages/core && bun install && bun test
+# core (verified Phase 1)
+bun install                                        # at repo root (workspaces)
+cd packages/core && bun test                       # unit + demo book + vectors + 10k-case properties
+PROPERTY_RUNS=300 bun test                         # quick loop while developing
+bun run vectors                                    # regenerate test/vectors/*.json (commit with the change)
+bun run typecheck
 
 # contracts
 cd contracts && forge build && forge test -vvv

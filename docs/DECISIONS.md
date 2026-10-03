@@ -70,6 +70,19 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 ### D-18 `settler/settle` is a Bun workspace member; core uses extensionless relative imports (from S6)
 **Context.** S6 showed `cre-compile` bundles `@tervane/core` through a Bun workspace link, but it typechecks core's sources with the settler's tsconfig (`moduleResolution: bundler`, no `allowImportingTsExtensions`). **Decision.** Add `settler/settle` to the root `workspaces` and depend on `"@tervane/core": "workspace:*"`; relative imports inside `packages/core` omit the `.ts` suffix (package subpath imports such as `@noble/curves/secp256k1.js` keep `.js`). **Consequences.** One install at the root; no relative-path import into core; CRE-WORKFLOW §3.5's fallback is not needed. *Accepted 2026-10-03 (go-ahead for Phase 1).*
 
+### D-19 `packages/core` implementation choices (Phase 1)
+**Context.** Places where PROTOCOL-SPEC is silent and the code had to pick. **Decision.**
+- `runEpoch` takes a `Decryptor` (`makeDecryptor(enclaveSk, chainId, core)`), not the raw `ENCLAVE_SK`, and performs §12 step 1 itself (root, cursor, accumulator, INTENT blob hashes, open-order blob hashes). The settler passes `onchain = {stateRoot, cursor, inboxAcc[cursor], inboxAcc[to]}`; CRE-WORKFLOW §4's separate `merkleRoot`/`verifyInbox` calls in `main.ts` become redundant (kept exported for the server).
+- Fatal codes: `E_ROOT_MISMATCH`, `E_INBOX_MISMATCH`, `E_BLOB_MISMATCH` (open-order blob missing or hash differs), `E_PRICE` (price ≤ 0), `E_INVARIANT`, `E_DECODE` (wire JSON). Intent-level codes are counted in `stats.rejected` only.
+- Accounts are created by a DEPOSIT, by an intent that passes decryption + version/action + nonce (the nonce must persist), and for the treasury on its first fee. A WITHDRAW from an unknown address yields a `paid = 0` payout without creating an account.
+- DEPOSIT/WITHDRAW with an asset outside {0, 1} credit nothing / pay 0; `TervaneCore` must reject such assets onchain (Phase 2).
+- Loans opened in an epoch are liquidation-checked in the same epoch's step 5 (they always pass, since every open ratio exceeds its liquidation ratio).
+- Property tests use a test-only cipher with the same blob shape and sender binding (keccak tag instead of AES-GCM) so 10,000-case runs are fast; ECIES itself is covered by unit tests, `ecies.json`, and the demo-book tests, which run on real ECIES.
+- Core was re-proven in `cre workflow simulate`: the real `@tervane/core` compiled by `cre-compile` ran a full `runEpoch` (deposit + ECIES intent) in a TEE handler and produced root `0x2a6ea56b…49ebb4`, identical to Bun (38 ms in WASM).
+**Consequences.** CRE-WORKFLOW §4 should call `runEpoch({ …, decrypt: makeDecryptor(enclaveSk, 10143n, core), onchain: {…} })`.
+
+---
+
 ## Open (need Lycantho)
 
 - **O-2 Confirm D-7** (drop proposals and the rejection penalty).
@@ -80,6 +93,8 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 - **O-8 HTTP request `headers` is deprecated (installed SDK wins).** `@chainlink/cre-sdk@1.23.0` marks `headers` deprecated ("use multi_headers"). CRE-WORKFLOW §4 should use `multiHeaders: { authorization: { values: [\`Bearer ${apiKey}\`] } }`.
 - **O-9 `writeReport` without `--broadcast` returns `TX_STATUS_SUCCESS` with no `txHash`.** CRE-WORKFLOW §4 ends with `bytesToHex(w.txHash ?? new Uint8Array(32))`, which fabricates a zero hash. Return an explicit `"no-tx"` marker instead, and never treat a missing hash as a real write.
 - **O-10 `cre init` template drift.** `hello-confidential-workflows-ts` pins `@chainlink/cre-sdk@1.18.0` / `viem@2.34.0` and ignores `--rpc-url`. Always re-pin to CLAUDE.md §4 versions and hand-write `project.yaml`.
+- **O-11 §5.2 nonce on E_BAD_ACTION.** §5.2 says "nonce still consumed if decryption succeeded", but the version/action check (step 2) runs before the nonce check (step 3), and an unknown version means the payload layout is unknown. Implemented: a step-2 failure consumes nothing (no nonce change, no account created); the nonce is consumed from step 3 onward. Confirm.
+- **O-12 Intents already expired on arrival.** A LEND/BORROW with `expiresAtEpoch != 0 && expiresAtEpoch < newEpoch` would otherwise join this epoch's auction and only be deleted next epoch. Implemented: rejected with `E_EXPIRED` (nonce consumed). Confirm.
 - **O-5 Provenance.** Ghost Finance (`snehendu098/ghost`) is public prior art with the same concept and near-identical write-up text. Confirm the relationship. If it isn't Lycantho's, the README must cite it as prior art, and the write-up text must be original.
 
 ---

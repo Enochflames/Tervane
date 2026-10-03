@@ -127,8 +127,8 @@ import {
 import { keccak256, toBytes, padHex, encodeFunctionData, decodeFunctionResult, zeroAddress } from "viem"
 import { z } from "zod"
 import {
-  coreAbi, feedAbi, erc20Abi, runEpoch, encodeReport, decodeEpochInput, encodeEpochDiff,
-  merkleRoot, verifyInbox, TervaneError,
+  coreAbi, feedAbi, erc20Abi, runEpoch, makeDecryptor, encodeReport, decodeEpochInput, encodeEpochDiff,
+  TervaneError,
 } from "@tervane/core"
 
 const configSchema = z.object({ /* §3.4 fields */ })
@@ -174,26 +174,25 @@ function settle(runtime: TeeRuntime<Config>, triggerKind: "log" | "cron"): strin
   if (res.statusCode !== 200) throw new TervaneError("E_SERVER", String(res.statusCode))
   const input = decodeEpochInput(new TextDecoder().decode(res.body))
 
-  // 4) Verify everything the server gave us against chain commitments.
-  if (merkleRoot(input.prev) !== st.stateRoot) throw new TervaneError("E_ROOT_MISMATCH")
+  // 4) Public price + solvency inputs.
   const to = input.inboxTo
   const accTo = read(cfg.coreAddress, coreAbi, "inboxAcc", [to])
-  verifyInbox(input.messages, st.cursor, accCursor, to, accTo)   // throws E_INBOX_MISMATCH
-
-  // 5) Price + solvency inputs (public).
   const [roundId, answer, , updatedAt] = read(cfg.priceFeedAddress, feedAbi, "latestRoundData")
-  const asOf = BigInt(Math.floor(runtime.now().getTime() / 1000))   // DON time; verify the return type of now()
-  if (answer <= 0n || asOf - updatedAt > params.maxPriceAge) throw new TervaneError("E_PRICE_STALE")
+  const asOf = BigInt(Math.floor(runtime.now().getTime() / 1000))   // now(): Date (verified, SDK 1.23)
+  if (answer <= 0n || asOf - updatedAt > params.maxPriceAge) throw new TervaneError("E_PRICE", "stale")
   const balUsd = read(cfg.usdTokenAddress, erc20Abi, "balanceOf", [cfg.coreAddress])
   const balEth = read(cfg.ethTokenAddress, erc20Abi, "balanceOf", [cfg.coreAddress])
 
-  // 6) Pure, deterministic transition (decrypts inside; plaintext never escapes this call).
+  // 5–6) Pure, deterministic transition. runEpoch verifies root, cursor, accumulator and blob hashes
+  //      itself (§12 step 1; D-19) and decrypts through the injected Decryptor; plaintext never escapes.
   const out = runEpoch({
-    prev: input.prev, messages: input.messages, openOrderBlobs: input.openOrderBlobs,
-    enclaveSk, chainId: 10143n, core: cfg.coreAddress, treasury: cfg.treasuryAddress,
-    price: answer, priceRoundId: roundId, asOf, params, demoMode: cfg.demoMode,
+    prev: input.prev, inboxTo: to, messages: input.messages, openOrderBlobs: input.openOrderBlobs,
+    onchain: { stateRoot: st.stateRoot, cursor: st.cursor, accCursor, accTo },
+    decrypt: makeDecryptor(enclaveSk, 10143n, cfg.coreAddress),
+    price: answer, priceRoundId: roundId, asOf, params: { grace: params.grace },
+    treasury: cfg.treasuryAddress, demoMode: cfg.demoMode,
     onchainBalances: { usd: balUsd, eth: balEth },
-  })   // returns { diff, report, stats }; throws E_INVARIANT on any I1–I3/I6 failure
+  })   // returns { state, diff, report, stats }; throws TervaneError (E_ROOT_MISMATCH, E_INBOX_MISMATCH, E_INVARIANT, …)
 
   // 7) Persist the diff BEFORE writing the report (ARCHITECTURE §4.3).
   const post = http.sendRequest(runtime, {
