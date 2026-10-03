@@ -1,0 +1,22 @@
+# secrets
+.env
+.env.*
+!.env.example
+settler/secrets.values.*
+*.key
+*.pem
+
+# dependencies / build output
+node_modules/
+dist/
+out/
+cache/
+broadcast/
+*.wasm
+.cre_build_tmp*
+
+# spikes (throwaway; results live in docs/DECISIONS.md)
+spikes/
+
+# os / editor
+.DS_Store

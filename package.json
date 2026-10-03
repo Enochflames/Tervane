@@ -1,0 +1,5 @@
+{
+  "name": "tervane",
+  "private": true,
+  "workspaces": ["packages/core", "settler/settle", "server", "web", "scripts"]
+}
