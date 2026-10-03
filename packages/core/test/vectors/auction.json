@@ -1,0 +1,455 @@
+{
+  "books": [
+    {
+      "name": "demo",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 2,
+          "lends": [
+            {
+              "id": "5",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 413,
+              "remaining": "600000000"
+            },
+            {
+              "id": "6",
+              "owner": "0x000000000000000000000000000000000000b01a",
+              "minRate": 527,
+              "remaining": "600000000"
+            },
+            {
+              "id": "7",
+              "owner": "0x00000000000000000000000000000000000c41d1",
+              "minRate": 611,
+              "remaining": "1000000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "8",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 552,
+              "remaining": "1000000000",
+              "collateral": "850000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 2,
+          "cleared": true,
+          "rStar": 527,
+          "volume": "1000000000",
+          "fills": [
+            {
+              "borrowId": "8",
+              "principal": "1000000000",
+              "slices": [
+                {
+                  "lendId": "5",
+                  "owner": "0x000000000000000000000000000000000000ada0",
+                  "amount": "600000000",
+                  "minRate": 413
+                },
+                {
+                  "lendId": "6",
+                  "owner": "0x000000000000000000000000000000000000b01a",
+                  "amount": "400000000",
+                  "minRate": 527
+                }
+              ],
+              "owed": "1000001003"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "no-cross",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 0,
+          "lends": [
+            {
+              "id": "1",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 600,
+              "remaining": "500000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "2",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 599,
+              "remaining": "500000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 0,
+          "cleared": false,
+          "rStar": 0,
+          "volume": "0",
+          "fills": []
+        }
+      ]
+    },
+    {
+      "name": "exact-cross",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 0,
+          "lends": [
+            {
+              "id": "1",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 600,
+              "remaining": "500000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "2",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 600,
+              "remaining": "500000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 0,
+          "cleared": true,
+          "rStar": 600,
+          "volume": "500000000",
+          "fills": [
+            {
+              "borrowId": "2",
+              "principal": "500000000",
+              "slices": [
+                {
+                  "lendId": "1",
+                  "owner": "0x000000000000000000000000000000000000ada0",
+                  "amount": "500000000",
+                  "minRate": 600
+                }
+              ],
+              "owed": "500575343"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "whole-or-nothing-skip",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 0,
+          "lends": [
+            {
+              "id": "1",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 300,
+              "remaining": "100000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "2",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 900,
+              "remaining": "150000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            },
+            {
+              "id": "3",
+              "owner": "0x00000000000000000000000000000000000c41d1",
+              "maxRate": 400,
+              "remaining": "80000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 0,
+          "cleared": true,
+          "rStar": 300,
+          "volume": "80000000",
+          "fills": [
+            {
+              "borrowId": "3",
+              "principal": "80000000",
+              "slices": [
+                {
+                  "lendId": "1",
+                  "owner": "0x000000000000000000000000000000000000ada0",
+                  "amount": "80000000",
+                  "minRate": 300
+                }
+              ],
+              "owed": "80046028"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ties",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 0,
+          "lends": [
+            {
+              "id": "4",
+              "owner": "0x00000000000000000000000000000000000c41d1",
+              "minRate": 300,
+              "remaining": "50000000"
+            },
+            {
+              "id": "2",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 300,
+              "remaining": "50000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "9",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 500,
+              "remaining": "50000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            },
+            {
+              "id": "7",
+              "owner": "0x000000000000000000000000000000000000b01a",
+              "maxRate": 500,
+              "remaining": "50000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 0,
+          "cleared": true,
+          "rStar": 300,
+          "volume": "100000000",
+          "fills": [
+            {
+              "borrowId": "7",
+              "principal": "50000000",
+              "slices": [
+                {
+                  "lendId": "2",
+                  "owner": "0x000000000000000000000000000000000000ada0",
+                  "amount": "50000000",
+                  "minRate": 300
+                }
+              ],
+              "owed": "50028768"
+            },
+            {
+              "borrowId": "9",
+              "principal": "50000000",
+              "slices": [
+                {
+                  "lendId": "4",
+                  "owner": "0x00000000000000000000000000000000000c41d1",
+                  "amount": "50000000",
+                  "minRate": 300
+                }
+              ],
+              "owed": "50028768"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "multi-tenor",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 0,
+          "lends": [
+            {
+              "id": "1",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 350,
+              "remaining": "300000000"
+            },
+            {
+              "id": "3",
+              "owner": "0x000000000000000000000000000000000000b01a",
+              "minRate": 450,
+              "remaining": "300000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "5",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 500,
+              "remaining": "400000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            }
+          ]
+        },
+        {
+          "tenorId": 1,
+          "lends": [
+            {
+              "id": "2",
+              "owner": "0x00000000000000000000000000000000000c41d1",
+              "minRate": 700,
+              "remaining": "200000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "4",
+              "owner": "0x000000000000000000000000000000000000b01a",
+              "maxRate": 800,
+              "remaining": "200000000",
+              "collateral": "1000000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 0,
+          "cleared": true,
+          "rStar": 450,
+          "volume": "400000000",
+          "fills": [
+            {
+              "borrowId": "5",
+              "principal": "400000000",
+              "slices": [
+                {
+                  "lendId": "1",
+                  "owner": "0x000000000000000000000000000000000000ada0",
+                  "amount": "300000000",
+                  "minRate": 350
+                },
+                {
+                  "lendId": "3",
+                  "owner": "0x000000000000000000000000000000000000b01a",
+                  "amount": "100000000",
+                  "minRate": 450
+                }
+              ],
+              "owed": "400345206"
+            }
+          ]
+        },
+        {
+          "tenorId": 1,
+          "cleared": true,
+          "rStar": 700,
+          "volume": "200000000",
+          "fills": [
+            {
+              "borrowId": "4",
+              "principal": "200000000",
+              "slices": [
+                {
+                  "lendId": "2",
+                  "owner": "0x00000000000000000000000000000000000c41d1",
+                  "amount": "200000000",
+                  "minRate": 700
+                }
+              ],
+              "owed": "201150685"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "open-ratio-failure",
+      "price": "250000000000",
+      "tenors": [
+        {
+          "tenorId": 0,
+          "lends": [
+            {
+              "id": "1",
+              "owner": "0x000000000000000000000000000000000000ada0",
+              "minRate": 300,
+              "remaining": "2000000000"
+            }
+          ],
+          "borrows": [
+            {
+              "id": "2",
+              "owner": "0x000000000000000000000000000000000000da40",
+              "maxRate": 900,
+              "remaining": "1000000000",
+              "collateral": "790000000000000000",
+              "tier": 0
+            },
+            {
+              "id": "3",
+              "owner": "0x00000000000000000000000000000000000c41d1",
+              "maxRate": 500,
+              "remaining": "1000000000",
+              "collateral": "800000000000000000",
+              "tier": 0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "tenorId": 0,
+          "cleared": true,
+          "rStar": 300,
+          "volume": "1000000000",
+          "fills": [
+            {
+              "borrowId": "3",
+              "principal": "1000000000",
+              "slices": [
+                {
+                  "lendId": "1",
+                  "owner": "0x000000000000000000000000000000000000ada0",
+                  "amount": "1000000000",
+                  "minRate": 300
+                }
+              ],
+              "owed": "1000575343"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
