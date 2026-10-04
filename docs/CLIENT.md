@@ -4,6 +4,8 @@ Vite + React + wagmi/viem, talking to Monad testnet. The client is where plainte
 
 ---
 
+> **As built (2026-10-04, D-26).** React 19 + Vite 8, wagmi 3 (injected connector) + viem, React Query. Routes: `/` landing, `/app` (lazy chunk) with Market, Lend, Borrow, Wallet, Positions, Credit, and Escape (shown only when relevant). Addresses come from `deployments/monad-testnet.json`; the server from `VITE_SERVER_URL` (default `http://localhost:8787`). `bun test src/test` checks the browser encryption path against `ecies.json`. Run: `cd web && bun dev`.
+
 ## 1. Screens
 
 | Screen | Contents |

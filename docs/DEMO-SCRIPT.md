@@ -18,7 +18,7 @@ Record each segment separately and cut; WASM compile time in the simulator would
 | **0:00–0:12** | Title card: "Tervane — a sealed-bid fixed-rate credit market on Monad, settled by a Chainlink CRE enclave" | "Onchain order books publish every bid, so lenders leak their cost of capital. Tervane is a new market structure: a sealed-bid auction for fixed-rate loans, where your bid is visible only to you and a Chainlink CRE enclave." |
 | **0:12–0:25** | Architecture diagram (ARCHITECTURE §2 mermaid, exported) with three boxes highlighted in sequence: TervaneCore → CRE enclave → server | "Users post encrypted intents to an onchain inbox on Monad. A confidential CRE workflow decrypts them inside a TEE, runs a sealed-bid auction, and writes one signed report per epoch. That report is the only thing that can change state." |
 | **0:25–0:45** | `bun scripts/demo/01-seed.ts` output table (wallet, action, amount — the rates column shows only on the *local* side, labeled "client-side only"). Cut to Monadscan: a `submitIntent` tx, input data = 350-byte blob. Cut to `sqlite3 tervane.db "select idx,kind,length(blob) from inbox"` → every intent is 350 bytes. | "Three lenders bid 4.13, 5.27 and 6.11 percent. One borrower will pay at most 5.52. Onchain, every intent is the same 350 bytes of ciphertext. Our own server stores them, and can't read a single rate." |
-| **0:45–1:12** | Terminal: `cre workflow simulate settle --target staging-settings --non-interactive --trigger-index 0 --evm-tx-hash $DAYO_TX --evm-event-index 0 --broadcast`. Highlight output lines: root verified, inbox accumulator verified, `fills=1`, tx hash. Cut to Monadscan: `Cleared(epoch=1, tenor=2, rate=527, volume=1000)`. Cut to `bun scripts/audit-leaks.ts` → `611 bps: 0 occurrences outside client storage`. | "The borrower's intent fires the workflow's log trigger. Inside the enclave it checks the server's state against the onchain Merkle root and the inbox against an onchain hash chain, then clears the book. Everyone matched trades at 5.27. The 6.11% bid didn't fill, and it never left the enclave. Our leak audit finds it nowhere: not in logs, the database, calldata, or events." |
+| **0:45–1:12** | Terminal (never with `--engine-logs` on screen, O-16): `cre workflow simulate settle --target staging-settings --non-interactive --trigger-index 0 --evm-tx-hash $DAYO_TX --evm-event-index 0 --broadcast`. Highlight output lines: root verified, inbox accumulator verified, `fills=1`, tx hash. Cut to Monadscan: `Cleared(epoch=1, tenor=2, rate=527, volume=1000)`. Cut to `bun scripts/audit-leaks.ts` → `611 bps: 0 occurrences outside client storage`. | "The borrower's intent fires the workflow's log trigger. Inside the enclave it checks the server's state against the onchain Merkle root and the inbox against an onchain hash chain, then clears the book. Everyone matched trades at 5.27. The 6.11% bid didn't fill, and it never left the enclave. Our leak audit finds it nowhere: not in logs, the database, calldata, or events." |
 | **1:12–1:35** | `bun scripts/demo/03-crash-price.ts 1800` → mock feed round 2. Then `cre workflow simulate settle … --trigger-index 1 --broadcast` → `liquidations=1`. Cut to `bun scripts/demo/show-accounts.ts`: Dayo `ethFree +0.2389`, Ada `ethFree +0.3483`, Bola `ethFree +0.2322`, treasury `+0.0306`. | "ETH drops to 1,800. On the next 30-second heartbeat the enclave reads the price, verifies the round onchain, and liquidates: owed plus ten percent is seized, five percent goes to the treasury, the rest to the lenders pro rata, and the borrower gets the remainder back." |
 | **1:35–1:52** | Split screen. Left: `bun scripts/demo/05-forge-report.ts` → `revert InvalidSender`. Right: `bun scripts/demo/06-tamper-server.ts` (edits Ada's balance in SQLite) → simulate → `E_ROOT_MISMATCH`, no tx. | "The chain doesn't trust the enclave blindly, and the enclave doesn't trust our server. A report from anywhere but the Chainlink forwarder reverts. A tampered server database fails the root check, and nothing is written." |
 | **1:52–2:00** | Closing card: three lines — "CRE: the only path to state change" · "Bids: enclave-only" · "If settlement stops: exit with a Merkle proof" | "If settlement ever stops, everyone exits with a Merkle proof against the last root. Tervane." |
@@ -61,7 +61,9 @@ Expected epoch after the crash to **$1,800** (mock round 2):
 
 ## 3. Demo tooling (`scripts/demo/`)
 
-All scripts read `deployments/monad-testnet.json` and `scripts/demo/wallets.json` (4 funded test keys + deployer; never real keys). Each prints a compact table and exits non-zero on any mismatch with §2.
+All scripts read `deployments/monad-testnet.json` and `scripts/demo/wallets.json` (4 throwaway test keys generated locally on first run; **gitignored**, never committed or printed). The deployer key comes from `settler/.env`. Each prints a compact table and exits non-zero on any mismatch with §2.
+
+**One command (Gate 5):** `set -a; . settler/.env; set +a; bun scripts/demo/run-all.ts` deploys fresh, regenerates the settler config, starts the server on a fresh DB, funds the wallets, runs scenarios 1–8 (`scripts/demo/scenarios.ts`) and the leak audit. As built, the `.sh` steps below are `.ts` (`02-settle-intents.ts`, `04-settle-cron.ts`), and the shared logic lives in `scripts/demo/steps.ts`.
 
 | Script | Does |
 |---|---|
@@ -75,7 +77,7 @@ All scripts read `deployments/monad-testnet.json` and `scripts/demo/wallets.json
 | `06-tamper-server.ts` | Backs up the DB, increments Ada's `usdFree` in the committed snapshot, runs H1 simulate (expects failure with `E_ROOT_MISMATCH` and no tx), restores the DB |
 | `07-escape.ts` | Extended walkthrough only: waits out `ESCAPE_DELAY` (10 min in demo params), `activateEscape`, Chidi `exitAccount` with proof, shows 1,000 tUSD returned |
 | `08-credit-proof.ts` | Extended walkthrough only: fetches Bola's account proof, calls `verifyAccount` → `true`, prints only tier + repaid volume |
-| `../audit-leaks.ts` | Greps simulator stdout (captured with `-v --engine-logs`), DB dump, tx calldata, and event logs for each bid (`413`, `527`, `611`, `552`) in decimal, hex, percent, and uint32 BE bytes. Allowed hits: `527` inside `Cleared`/clear table; anything inside client storage exports |
+| `../audit-leaks.ts` | Greps simulator stdout (captured with `-v`), the server log, the DB, tx calldata and event logs for each bid (`413`, `527`, `611`, `552`, plus `593` used by scenario 2) in decimal, hex, percent, and uint32 BE bytes; also fails if any secret value appears. Allowed hits: `527` (the public clearing rate); anything inside client storage exports. **Never capture or record with `--engine-logs`**: the simulator's fake HTTP capability logs full requests, including the server bearer key (O-16). |
 
 Use `--broadcast` on every simulate so the chain state the video shows is real.
 
@@ -96,12 +98,12 @@ Use `--broadcast` on every simulate so the chain state the video shows is real.
 ## 5. Preflight checklist (run `00-preflight.ts`; all green before recording)
 
 - [ ] CRE CLI ≥ 1.30 (`cre version`), `cre login` valid, `monad-testnet` in `cre workflow supported-chains`
-- [ ] `CRE_ETH_PRIVATE_KEY` has ≥ 1 MON; 4 demo wallets have ≥ 0.5 MON each
+- [ ] `CRE_ETH_PRIVATE_KEY` has ≥ 1 MON (a fresh deploy costs ≈ 0.74 MON at 102 gwei); 4 demo wallets have ≥ 0.2 MON each (measured: a full run spends < 0.15 MON per wallet)
 - [ ] Contracts deployed fresh (new deploy = clean inbox, epoch 0); `TervaneCore.getForwarderAddress()` == Monad testnet **mock** forwarder; no workflow-id/author checks set
 - [ ] `enclavePubKey` onchain == pubkey derived from `TERVANE_ENCLAVE_SK` in `settler/.env`
 - [ ] Mock feed answer == `2500e8`, round 1, updated within `MAX_PRICE_AGE`
 - [ ] Server running, indexer lag < 5 blocks, `/v1/health` green, DB backed up
-- [ ] `settler/settle/config.staging.json` addresses match the deployment file (`scripts/gen-config.ts` writes them)
+- [ ] `settler/settle/config.staging.json` addresses match the deployment file (`scripts/gen-settler-config.ts` writes them)
 - [ ] One dry rehearsal of the full sequence on a separate deployment; then redeploy fresh for the recording
 - [ ] `debugLogs: true` only prints codes/counts; run `audit-leaks.ts` on the rehearsal output and confirm clean
 - [ ] Explorer tabs pre-opened: TervaneCore (verified source), the deployer address

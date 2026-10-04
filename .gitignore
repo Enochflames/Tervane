@@ -24,3 +24,11 @@ package-lock.json
 
 # dev stub data
 scripts/dev/.data/
+
+# server sqlite
+server/data/
+
+# demo: local test keys, run state and captured output (never commit keys)
+scripts/demo/wallets.json
+scripts/demo/.demo-state.json
+scripts/demo/.out/

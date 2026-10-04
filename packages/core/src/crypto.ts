@@ -29,6 +29,13 @@ export function deriveKey(sharedCompressed: Uint8Array, ephPk: Uint8Array): Uint
   return hkdf(sha256, sharedCompressed.subarray(1, 33), ephPk, INFO, 32)
 }
 
+/** CLIENT.md §2.1: 33 bytes, 0x02/0x03 prefix, and a valid secp256k1 point. Throws otherwise. */
+export function validateEnclavePubKey(pk: Uint8Array): Uint8Array {
+  if (pk.length !== 33 || (pk[0] !== 0x02 && pk[0] !== 0x03)) throw new Error('enclave key must be a 33-byte compressed point')
+  secp256k1.Point.fromBytes(pk) // throws if not on the curve
+  return pk
+}
+
 export function enclavePublicKey(enclaveSk: Uint8Array): Uint8Array {
   return secp256k1.getPublicKey(enclaveSk, true)
 }

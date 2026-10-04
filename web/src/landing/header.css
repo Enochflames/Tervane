@@ -1,0 +1,75 @@
+.hdr {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  box-shadow: 0 1px 0 transparent;
+  transition: box-shadow var(--dur-ui) ease;
+}
+
+.hdr[data-scrolled='true'] {
+  box-shadow: 0 1px 0 var(--rule);
+}
+
+.hdr-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  height: 64px;
+}
+
+.hdr-brand {
+  border-radius: 6px;
+}
+
+.hdr-nav {
+  display: flex;
+  gap: var(--s-5);
+  margin-left: var(--s-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.hdr-nav a {
+  transition: color var(--dur-fast) ease;
+}
+
+.hdr-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+
+.hdr-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--muted);
+  transition:
+    color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    transform var(--dur-press) var(--ease-out);
+}
+
+.hdr-icon:active {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hdr-nav a:hover,
+  .hdr-icon:hover {
+    color: var(--ink);
+  }
+  .hdr-icon:hover {
+    background: var(--surface-2);
+  }
+}
+
+@media (max-width: 900px) {
+  .hdr-nav {
+    display: none;
+  }
+}

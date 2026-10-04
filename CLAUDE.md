@@ -137,8 +137,10 @@ cd contracts && forge build && forge test          # parity vs core vectors, uni
 forge test --match-contract GasTest -vv            # gas figures for writeGasLimit
 # deploy: see CONTRACTS.md §6 (DEPLOYER_PK from settler/.env, --gas-estimate-multiplier 115)
 
-# server
-cd server && bun install && bun run dev          # :8787
+# server (verified Phase 4)
+cd server && bun test                              # fake chain + real runEpoch as the enclave
+set -a; . settler/.env; set +a; export INTERNAL_API_KEY="$TERVANE_SERVER_API_KEY"; unset CRE_ETH_PRIVATE_KEY TERVANE_ENCLAVE_SK
+cd server && bun src/main.ts                       # :8787; then: bun scripts/dev/gate4.ts (full loop on testnet)
 
 # settler (verified Phase 3) — config from deployments JSON, unit tests, then simulate
 bun scripts/gen-settler-config.ts                  # writes settler/settle/config.{staging,production}.json
@@ -154,8 +156,9 @@ cre workflow simulate settle --target staging-settings --non-interactive \
 # web
 cd web && bun install && bun run dev
 
-# demo
-bun scripts/demo/00-preflight.ts
+# demo (verified Phase 5) — Gate 5 in one command: fresh deploy, scenarios 1–8, leak audit (~20 min incl. ESCAPE_DELAY)
+set -a; . settler/.env; set +a; bun scripts/demo/run-all.ts
+bun scripts/demo/00-preflight.ts                   # before recording (server running, fresh deployment)
 ```
 
 ---
@@ -176,10 +179,14 @@ A feature is done when: the spec section it implements is cited in the PR/commit
 - **zod `.url()` doesn't work in the workflow** (QuickJS has no `URL` global): config validation fails at engine start. Validate URLs with a regex.
 - **A forwarder SUCCESS can hide a receiver revert.** Check `receiverContractExecutionStatus` as well as `txStatus` (O-13).
 - **Foundry's monad gas numbers run ~2× high** vs Monad testnet for `_processReport` (O-15). Calibrate gas limits from on-chain traces.
+- **Never run the simulator with `--engine-logs` on screen or into shared logs.** Its fake HTTP capability logs full requests, including the server bearer key (O-16). Use `-v`.
+- **SQLite in WAL mode: back up with `VACUUM INTO`, not by copying the `.db` file.** A killed process leaves data in `-wal`; the server checkpoints and closes on SIGTERM.
 - **Workspace imports.** `settler/settle` is a root workspace member and imports `@tervane/core` via `workspace:*`; `cre-compile` typechecks core with the settler's tsconfig, so relative imports inside core are extensionless (D-18).
 - **`MockKeystoneForwarder` delivers no workflow metadata.** In simulation, do not configure `setExpectedWorkflowId/Author/Name` on `TervaneCore`, or every report reverts. Production deploy re-points the forwarder and sets the workflow id.
 - **Inside `handlerInTee`, use `new HTTPClient().sendRequest(teeRuntime, …)`.** `ConfidentialHTTPClient` has no `TeeRuntime` overload. Chain reads and writes go through `runtime.usingTheDons()` and are not confidential (they don't need to be).
 - **Log-trigger addresses and topics must be base64** via `hexToBase64()`; indexed topic values must be padded to 32 bytes first.
 - **Quotas that shape the design:** 15 HTTP calls, 15 chain reads, 5 secret fetches per execution; HTTP request ≤ 120 KB and response ≤ 250 KB; report ≤ 50 KB; execution ≤ 5 min; WASM memory 100 MB; log event ≤ 5 KB. The state-diff protocol and the inbox page size exist because of these.
+- **Monad's public RPC caps `eth_getLogs` at 100 blocks** (HTTP 413, `-32614`). Index in ≤ 100-block ranges; a server catching up from an old deploy block makes thousands of requests.
+- **Losing the server's state is real.** Epochs settled without the server storing their states can't be rebuilt by anyone (intents are encrypted); only the escape hatch helps. Never settle through a throwaway stub on a deployment you intend to keep (D-24).
 - **Monad nodes don't serve arbitrary historical state.** The server indexes logs forward from the deploy block and keeps its own copy; never design a flow that needs `eth_call` at an old block.
 - **Confidential Workflows is a private beta.** Simulation works without enrollment; production deploy needs it. Request access early (form linked from the CRE docs) but never block on it.

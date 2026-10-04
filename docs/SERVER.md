@@ -8,6 +8,13 @@ What it can't do: forge state (the enclave verifies `merkleRoot(prev) == stateRo
 
 ---
 
+> **As built (Phase 4, D-24).** `server/src/{env,db,state,chain,indexer,auth,proofs,app,main}.ts` + `routes/{internal,public}.ts`; tests in `server/test/server.test.ts` (fake chain source + real `runEpoch` as the enclave). Run:
+> ```bash
+> set -a; . settler/.env; set +a; export INTERNAL_API_KEY="$TERVANE_SERVER_API_KEY"; unset CRE_ETH_PRIVATE_KEY TERVANE_ENCLAVE_SK
+> cd server && bun src/main.ts        # :8787, sqlite at server/data/tervane.db, indexes from deployments/monad-testnet.json
+> ```
+> The server process holds no private keys.
+
 ## 1. Modules
 
 ```
@@ -28,7 +35,7 @@ server/src/
 ## 2. Database schema
 
 ```sql
-CREATE TABLE inbox (
+CREATE TABLE inbox (                     -- plus acc TEXT: local accumulator, cross-checked against inboxAcc(idx)
   idx        INTEGER PRIMARY KEY,         -- chain index, contiguous from 1
   kind       INTEGER NOT NULL,
   sender     TEXT NOT NULL,
@@ -71,7 +78,7 @@ Full snapshots per root are fine at hackathon scale and make proofs trivial. Not
 ## 3. Indexer
 
 - Read `deployments/monad-testnet.json` for addresses and the deploy block.
-- Poll `eth_getLogs` in bounded block ranges (respect the RPC provider's range limit; start with 100–500 blocks and adapt on error). Monad blocks are ~300 ms, so poll every 1–2 s with small ranges rather than huge ranges rarely.
+- Poll `eth_getLogs` in bounded block ranges. Monad's public testnet RPC rejects ranges over **100 blocks** (`-32614`, HTTP 413), so `LOG_RANGE` defaults to 100 and halves on error, growing back by one per success. Poll every ~1 s.
 - Monad full nodes don't serve arbitrary historical **state**; logs over ranges are fine, but never depend on `eth_call` at old blocks.
 - `InboxMessage`: insert; assert `idx == last_idx + 1` (gap → re-fetch range; never skip). Recompute `msgHash` and the accumulator locally and compare to `inboxAcc(idx)` periodically (catches indexing bugs before the enclave does).
 - `EpochSettled(epoch, newRoot, …)`: mark `states[newRoot]` committed (must exist as pending; if not, log `E_MISSING_PENDING` loudly — that indicates a bug in the ordering contract), mark sibling pendings for the same parent `orphaned`, insert `epochs` + `clears`.
@@ -84,7 +91,7 @@ Full snapshots per root are fine at hackathon scale and make proofs trivial. Not
 Auth: `Authorization: Bearer <INTERNAL_API_KEY>` compared with `timingSafeEqual`. This key lives in the Vault DON (or settler `.env` in simulation). It protects availability and data minimization, not integrity.
 
 ### `GET /internal/epoch-input?cursor=C&limit=N`
-1. Load the committed state whose root equals the latest `EpochSettled.newRoot` (or genesis). If the caller's `C` disagrees with that state's `meta.cursor`, return `409` with the server's view (the enclave will throw `E_ROOT_MISMATCH` anyway).
+1. Load the committed state whose root equals the latest `EpochSettled.newRoot` (or genesis). Before that, read `settlementState()` at the latest block and, if the chain's `stateRoot` equals a stored pending root, promote it (the chain is authoritative; this removes the indexing lag between back-to-back epochs, D-24). If the caller's `C` disagrees with that state's `meta.cursor`, return `409` with the server's view (the enclave will throw `E_ROOT_MISMATCH` anyway).
 2. `to = min(C + N, last indexed idx)`. Return messages `C+1..to` with blobs.
 3. `openOrderBlobs`: for each open order in the state, the blob at inbox index `order.id`.
 4. Response shape: CRE-WORKFLOW §5. Keep it under 250 KB; if it would exceed, shrink `to`.
@@ -94,7 +101,7 @@ Body: `EpochDiff` (PROTOCOL-SPEC §7.4).
 1. Load committed state for `prevRoot`; `409` if unknown.
 2. Apply diff using `@tervane/core` (`applyDiff`), recompute root.
 3. If root ≠ `newRoot` → `422 E_DIFF_ROOT` (log loudly; this means enclave and server code diverged).
-4. Upsert `states(root=newRoot, status='pending', parent=prevRoot)`. Idempotent on repeat.
+4. Upsert `states(root=newRoot, status='pending', parent=prevRoot)`. Idempotent on repeat — but only after step 2–3 verified the diff (a different diff claiming an existing root still gets `422`).
 5. `200`.
 
 GC: delete `orphaned` and `pending` states older than 20 epochs.
