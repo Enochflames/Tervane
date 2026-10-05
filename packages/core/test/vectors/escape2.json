@@ -1,0 +1,171 @@
+{
+  "note": "Two loans from a real runEpoch: Chidi 400 and Dayo 600, both at the 5.27% clearing rate, 7-day tenor.",
+  "deposits": [
+    {
+      "sender": "0x000000000000000000000000000000000000ada0",
+      "asset": 0,
+      "amount": "600000000"
+    },
+    {
+      "sender": "0x000000000000000000000000000000000000b01a",
+      "asset": 0,
+      "amount": "600000000"
+    },
+    {
+      "sender": "0x00000000000000000000000000000000000c41d1",
+      "asset": 1,
+      "amount": "400000000000000000"
+    },
+    {
+      "sender": "0x000000000000000000000000000000000000da40",
+      "asset": 1,
+      "amount": "600000000000000000"
+    }
+  ],
+  "root": "0xece3e1ffe6ec2f0499e8be879e3e18ca997c601b229354bb4ec1853fff99479e",
+  "clears": [
+    {
+      "tenorId": 0,
+      "rateBps": 527,
+      "volume": "1000000000"
+    }
+  ],
+  "accounts": [
+    {
+      "account": {
+        "addr": "0x000000000000000000000000000000000000ada0",
+        "usdFree": "0",
+        "usdReserved": "0",
+        "ethFree": "0",
+        "ethReserved": "0",
+        "ethLocked": "0",
+        "tier": 0,
+        "repaidVolume": "0",
+        "nonce": "1"
+      },
+      "leaf": "0x2ac26b4b8b5a6259ee640cfabca0a36d024871b38d49b3fc7156d57abfeaabf1",
+      "proof": [
+        "0x37a4409e3ce540e6e26f45ff95f7c09b2f594d5aadd10e3429d80a0d1b4a3b7d",
+        "0x7cf7e8f439aa879cc6126d7d96551d8e05eca21b74af79803ff63e2dd95746d1",
+        "0xb6348a599f62e4748b407343f8df83616b1b6e3db679e159c562c1c81e47b586"
+      ]
+    },
+    {
+      "account": {
+        "addr": "0x000000000000000000000000000000000000b01a",
+        "usdFree": "0",
+        "usdReserved": "200000000",
+        "ethFree": "0",
+        "ethReserved": "0",
+        "ethLocked": "0",
+        "tier": 0,
+        "repaidVolume": "0",
+        "nonce": "1"
+      },
+      "leaf": "0xbbb8dcee40d5ce4debd78da6ff631fc5e759b9d5e846af1eef80e0c9c57f5648",
+      "proof": [
+        "0xb8ae4fb3e56a2374d0fafdd318767203a4c1c66c45fdd5cc698dabfe59eeed5e",
+        "0xd1c7b86eb306743abd075bb47e44ebace817e2bbfe16a4f9d78e41751e52d221",
+        "0x400b68e221857baa675bcc0281e8af68be076c2ad7eaaedbb9faa1424ce96b1d"
+      ]
+    },
+    {
+      "account": {
+        "addr": "0x000000000000000000000000000000000000da40",
+        "usdFree": "600000000",
+        "usdReserved": "0",
+        "ethFree": "0",
+        "ethReserved": "0",
+        "ethLocked": "600000000000000000",
+        "tier": 0,
+        "repaidVolume": "0",
+        "nonce": "1"
+      },
+      "leaf": "0x37a4409e3ce540e6e26f45ff95f7c09b2f594d5aadd10e3429d80a0d1b4a3b7d",
+      "proof": [
+        "0x2ac26b4b8b5a6259ee640cfabca0a36d024871b38d49b3fc7156d57abfeaabf1",
+        "0x7cf7e8f439aa879cc6126d7d96551d8e05eca21b74af79803ff63e2dd95746d1",
+        "0xb6348a599f62e4748b407343f8df83616b1b6e3db679e159c562c1c81e47b586"
+      ]
+    },
+    {
+      "account": {
+        "addr": "0x00000000000000000000000000000000000c41d1",
+        "usdFree": "400000000",
+        "usdReserved": "0",
+        "ethFree": "0",
+        "ethReserved": "0",
+        "ethLocked": "400000000000000000",
+        "tier": 0,
+        "repaidVolume": "0",
+        "nonce": "1"
+      },
+      "leaf": "0x48afa37fbf6a9a79379e96a4c3146c6aa69bcc764e572faf439f6fa6f62beb09",
+      "proof": [
+        "0x63b2fb7f19c364d6c9d49902b6ae59746c32e3d65129865b707143a9ec3db131",
+        "0xdf29ee39e8fdfaf40ff06ca515130302bfbbae1227f75af1b8183a4eef4a086e",
+        "0xb6348a599f62e4748b407343f8df83616b1b6e3db679e159c562c1c81e47b586"
+      ]
+    }
+  ],
+  "loans": [
+    {
+      "loan": {
+        "id": "1",
+        "borrower": "0x00000000000000000000000000000000000c41d1",
+        "tenorId": 0,
+        "principal": "400000000",
+        "rateBps": 527,
+        "owed": "400404274",
+        "collateral": "400000000000000000",
+        "tierAtOpen": 0,
+        "openedAt": "1760000000",
+        "maturity": "1760604800",
+        "lendersHash": "0xa46641aca2aac4be18a150ecfdc9451ad81c5512214fea057cb5cb05b1b5474a"
+      },
+      "lenders": [
+        {
+          "lender": "0x000000000000000000000000000000000000ada0",
+          "amount": "400000000"
+        }
+      ],
+      "leaf": "0xb8ae4fb3e56a2374d0fafdd318767203a4c1c66c45fdd5cc698dabfe59eeed5e",
+      "proof": [
+        "0xbbb8dcee40d5ce4debd78da6ff631fc5e759b9d5e846af1eef80e0c9c57f5648",
+        "0xd1c7b86eb306743abd075bb47e44ebace817e2bbfe16a4f9d78e41751e52d221",
+        "0x400b68e221857baa675bcc0281e8af68be076c2ad7eaaedbb9faa1424ce96b1d"
+      ]
+    },
+    {
+      "loan": {
+        "id": "2",
+        "borrower": "0x000000000000000000000000000000000000da40",
+        "tenorId": 0,
+        "principal": "600000000",
+        "rateBps": 527,
+        "owed": "600606411",
+        "collateral": "600000000000000000",
+        "tierAtOpen": 0,
+        "openedAt": "1760000000",
+        "maturity": "1760604800",
+        "lendersHash": "0x2cb184520caec957893c304ccfa716fe8e3548c5726bec55234223ac680eabdd"
+      },
+      "lenders": [
+        {
+          "lender": "0x000000000000000000000000000000000000ada0",
+          "amount": "200000000"
+        },
+        {
+          "lender": "0x000000000000000000000000000000000000b01a",
+          "amount": "400000000"
+        }
+      ],
+      "leaf": "0x63b2fb7f19c364d6c9d49902b6ae59746c32e3d65129865b707143a9ec3db131",
+      "proof": [
+        "0x48afa37fbf6a9a79379e96a4c3146c6aa69bcc764e572faf439f6fa6f62beb09",
+        "0xdf29ee39e8fdfaf40ff06ca515130302bfbbae1227f75af1b8183a4eef4a086e",
+        "0xb6348a599f62e4748b407343f8df83616b1b6e3db679e159c562c1c81e47b586"
+      ]
+    }
+  ]
+}

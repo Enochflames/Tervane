@@ -159,6 +159,14 @@ cd web && bun install && bun run dev
 # demo (verified Phase 5) — Gate 5 in one command: fresh deploy, scenarios 1–8, leak audit (~20 min incl. ESCAPE_DELAY)
 set -a; . settler/.env; set +a; bun scripts/demo/run-all.ts
 bun scripts/demo/00-preflight.ts                   # before recording (server running, fresh deployment)
+
+# escape hatch (verified Phase 7) — own fresh deployment; restores the web deployment afterwards (~15 min)
+set -a; . settler/.env; set +a; bun scripts/demo/run-gate7.ts   # needs ≥ 1.5 MON; TERVANE_SERVER_PORT=8797 if :8787 is taken
+cd contracts && forge test --match-contract EscapeInvariantTest   # post-escape solvency/conservation invariants
+
+# live demo — epochs within ~20 s of every inbox message / price change, 5-min heartbeat (server must be up)
+bun scripts/gen-settler-config.ts --server http://localhost:8797 && TERVANE_SERVER_PORT=8797 bun scripts/demo/autosettle.ts
+# step-by-step browser test: userflow.md
 ```
 
 ---

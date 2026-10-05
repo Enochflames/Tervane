@@ -9,7 +9,7 @@ import {
   accountInner, addr, buildAad, buildLevels, decryptIntent, deriveKey, encodePayload, encodeReport, encryptIntent,
   isLiquidatable, lendersHash, liquidationAmounts, loanInner, metaInner, msgHash, openRatioOk, orderInner, owedFor,
   leafFromInner, proofFromLevels, runAuction, split, genesisState, merkleRoot, stateLeaves, accountLeaf, loanLeaf,
-  stateToJson, assertInvariants, type Account, type Hex, type IntentPayload, type LedgerState, type Loan, type Order,
+  stateToJson, assertInvariants, runEpoch as runEpochFn, type Account, type Hex, type IntentPayload, type LedgerState, type Loan, type Order,
   type SettlementReport,
 } from '../src'
 
@@ -266,7 +266,57 @@ function escape() {
   }
 }
 
-export const VECTORS = { inbox, payload: payloads, ecies, leaves, tree, auction, liquidation, report, genesis, escape } as const
+// ── escape2.json ────────────────────────────────────────────
+/**
+ * Two-loan ledger produced by the real transition (runEpoch from genesis) for the Phase 7 escape invariants.
+ * Blobs carry the payload in clear behind a test-only "decryptor"; ECIES is covered by ecies.json.
+ */
+function escape2() {
+  const blobOf = (p: IntentPayload): Hex => {
+    const b = new Uint8Array(350); b[0] = 1; b.set(hexToBytes(encodePayload(p)), 46)
+    return bytesToHex(b)
+  }
+  const decrypt = (blob: Uint8Array) => blob.slice(46, 46 + 288)
+  const pay = (action: number, nonce: bigint, rateBps: number, amount: bigint, collateral = 0n): IntentPayload =>
+    ({ version: 1, action, tenorId: 0, rateBps, nonce, refId: 0n, expiresAtEpoch: 0n, amount, collateral })
+  const raw = [
+    { kind: KIND_DEPOSIT, sender: ADA, asset: 0, amount: USD(600) },
+    { kind: KIND_DEPOSIT, sender: BOLA, asset: 0, amount: USD(600) },
+    { kind: KIND_DEPOSIT, sender: CHIDI, asset: 1, amount: 4n * 10n ** 17n },
+    { kind: KIND_DEPOSIT, sender: DAYO, asset: 1, amount: 6n * 10n ** 17n },
+    { kind: KIND_INTENT, sender: ADA, p: pay(ACTION_LEND, 1n, 413, USD(600)) },
+    { kind: KIND_INTENT, sender: BOLA, p: pay(ACTION_LEND, 1n, 527, USD(600)) },
+    { kind: KIND_INTENT, sender: CHIDI, p: pay(ACTION_BORROW, 1n, 611, USD(400), 4n * 10n ** 17n) },
+    { kind: KIND_INTENT, sender: DAYO, p: pay(ACTION_BORROW, 1n, 552, USD(600), 6n * 10n ** 17n) },
+  ]
+  const messages = raw.map((m, i) => {
+    const blob: Hex = 'p' in m ? blobOf(m.p!) : '0x'
+    return { index: BigInt(i + 1), kind: m.kind, sender: m.sender, asset: 'asset' in m ? m.asset! : 0, amount: 'amount' in m ? m.amount! : 0n,
+      blobHash: m.kind === KIND_INTENT ? keccak256(blob) : ZERO32, blob }
+  })
+  let acc: Hex = ZERO32
+  for (const m of messages) acc = accStep(acc, msgHash(m))
+  const prev = genesisState()
+  const out = runEpochFn({
+    prev, onchain: { stateRoot: merkleRoot(prev), cursor: 0n, accCursor: ZERO32, accTo: acc }, inboxTo: BigInt(messages.length), messages,
+    openOrderBlobs: new Map(), decrypt, price: P(2500), priceRoundId: 1n, asOf: 1_760_000_000n, params: { grace: 60n }, treasury: TREASURY, demoMode: true,
+  })
+  const s = out.state
+  const levels = buildLevels(stateLeaves(s))
+  return {
+    note: 'Two loans from a real runEpoch: Chidi 400 and Dayo 600, both at the 5.27% clearing rate, 7-day tenor.',
+    deposits: raw.filter((m) => m.kind === KIND_DEPOSIT).map((m) => ({ sender: m.sender, asset: m.asset, amount: m.amount })),
+    root: out.report.newRoot, clears: out.report.clears,
+    accounts: [...s.accounts.values()].sort((a, b) => (BigInt(a.addr) < BigInt(b.addr) ? -1 : 1))
+      .map((a) => ({ account: a, leaf: accountLeaf(a), proof: proofFromLevels(levels, accountLeaf(a)) })),
+    loans: [...s.loans.values()].sort((a, b) => (a.id < b.id ? -1 : 1)).map((l) => ({
+      loan: { ...l, lenders: undefined, lendersHash: lendersHash(l.lenders) }, lenders: l.lenders,
+      leaf: loanLeaf(l), proof: proofFromLevels(levels, loanLeaf(l)),
+    })),
+  }
+}
+
+export const VECTORS = { inbox, payload: payloads, ecies, leaves, tree, auction, liquidation, report, genesis, escape, escape2 } as const
 
 /** JSON with bigints as decimal strings, stable 2-space formatting. */
 export function toJson(v: unknown): string {
