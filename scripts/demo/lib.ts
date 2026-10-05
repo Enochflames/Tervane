@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import type { Hex } from '@tervane/core'
 import type { Account } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import { SERVER, SERVER_PORT } from '../lib/api'
 import { ROOT } from '../lib/chain'
 
 export const DEMO = join(ROOT, 'scripts/demo')
@@ -56,7 +57,11 @@ export class ServerProc {
       MONAD_TESTNET_RPC: process.env.MONAD_TESTNET_RPC || 'https://testnet-rpc.monad.xyz',
       INTERNAL_API_KEY: process.env.TERVANE_SERVER_API_KEY ?? '', // the server never gets signing keys
       DB_PATH: this.dbPath,
+      PORT: String(SERVER_PORT),
     }
+    // Anything already answering here would be mistaken for our server (and the settler would call it too).
+    const busy = await fetch(`${SERVER}/ping`).then(() => true, () => false)
+    if (busy) throw new Error(`port ${SERVER_PORT} is already in use; set TERVANE_SERVER_PORT to a free port`)
     const log = Bun.file(this.logFile)
     const prev = existsSync(this.logFile) ? await log.text() : ''
     this.p = Bun.spawn(['bun', 'src/main.ts'], { cwd: join(ROOT, 'server'), env, stdout: 'pipe', stderr: 'pipe' })
@@ -66,7 +71,7 @@ export class ServerProc {
       ;(async () => { for await (const chunk of stream) { sink.write(chunk); sink.flush() } })()
     }
     for (let i = 0; i < 60; i++) {
-      try { if ((await fetch('http://localhost:8787/ping')).ok) return } catch {}
+      try { if ((await fetch(`${SERVER}/ping`)).ok) return } catch {}
       await Bun.sleep(500)
     }
     throw new Error('server did not start')

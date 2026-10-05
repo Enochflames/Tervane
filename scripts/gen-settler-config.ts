@@ -1,11 +1,11 @@
 // Writes settler/settle/config.{staging,production}.json from deployments/monad-testnet.json (CRE-WORKFLOW §3.4).
-// Usage: bun scripts/gen-settler-config.ts [--server http://localhost:8787]
+// Usage: bun scripts/gen-settler-config.ts [--server http://localhost:8787]   (default port: TERVANE_SERVER_PORT or 8787)
 import { join } from 'node:path'
 
 const root = join(import.meta.dir, '..')
 const dep = await Bun.file(join(root, 'deployments/monad-testnet.json')).json()
 const serverArg = process.argv.indexOf('--server')
-const serverUrl = serverArg > 0 ? process.argv[serverArg + 1]! : 'http://localhost:8787'
+const serverUrl = serverArg > 0 ? process.argv[serverArg + 1]! : `http://localhost:${process.env.TERVANE_SERVER_PORT || 8787}`
 
 // D-22 write-gas constants, calibrated on the Gate 3 broadcast trace (tx 0x55215835…7a9f): intrinsic 21k,
 // forwarder ~40.4k, _processReport ~48.9k (Foundry's monad model overstates this ~2x). perPayout stays a

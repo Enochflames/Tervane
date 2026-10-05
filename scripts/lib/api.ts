@@ -2,7 +2,9 @@
 import type { Account } from 'viem'
 import { dep } from './chain'
 
-export const SERVER = process.env.SERVER_URL || 'http://localhost:8787'
+/** TERVANE_SERVER_PORT moves the demo server (and the settler config) off :8787 when another app holds it. */
+export const SERVER_PORT = Number(process.env.TERVANE_SERVER_PORT || 8787)
+export const SERVER = process.env.SERVER_URL || `http://localhost:${SERVER_PORT}`
 const domain = () => ({ name: 'Tervane', version: '1', chainId: dep.chainId, verifyingContract: dep.tervaneCore })
 const types = { ViewAccount: [{ name: 'account', type: 'address' }, { name: 'issuedAt', type: 'uint64' }] } as const
 
