@@ -1,15 +1,150 @@
 # Tervane — Demo Script
 
-Two deliverables: **(1)** the ≤ 2-minute video for the Chainlink CRE bounty and the Metropolis submission, and **(2)** a longer live walkthrough for judges who want depth. Both use the same deterministic demo book so every number on screen is predictable and matches the golden vectors.
+Three deliverables, all on the same deterministic demo book (§2), so every number on screen is predictable and matches the golden vectors:
+- **(1)** the **~5-minute live video**: the landing page plus the web app working live, with the CRE settler visibly running (§1);
+- **(1b)** a **≤ 2-minute terminal cut**, if a submission form caps video length;
+- **(2)** a longer live walkthrough for judges who want depth (§4).
 
-The video must prove three things, in this order of importance:
+Every video must prove three things, in this order of importance:
 1. **CRE is the only path to state change** (orchestration layer, bounty criterion).
 2. **Bids stay inside the enclave**; only the clearing rate comes out.
 3. **The chain checks the enclave**: forged reports, tampered server state, and stale prices are rejected.
 
+Copy spoken on camera follows THREAT-MODEL §5. Say "visible only to you and a Chainlink CRE enclave", never "no one can ever see". Say "simulated with the CRE CLI against Monad testnet; reports land onchain", never "running on the CRE network".
+
 ---
 
-## 1. The 2-minute video
+## 1. The live video (~5:00)
+
+A shot-by-shot script for the landing page plus the live app. Your two browser wallets play **Ada** (lender) and **Dayo** (borrower) from the demo book (§2). Bola and Chidi, the other two lenders, are seeded from a script before recording, so the epoch clears at **5.27%** and Chidi's 6.11% never fills.
+
+### 1.0 Before you hit record (about 30 min of prep)
+
+**Stack (four terminals, from the repo root; userflow.md §2)**
+1. **Fresh deploy.** No indexer catch-up, a clean book, the feed at $2,500:
+   ```bash
+   set -a; . settler/.env; set +a; export DEPLOYER_PK="0x${CRE_ETH_PRIVATE_KEY#0x}"
+   cd contracts && forge script script/Deploy.s.sol:Deploy --rpc-url monad_testnet --gas-estimate-multiplier 115 --broadcast --slow && cd ..
+   bun scripts/gen-settler-config.ts --server http://localhost:8797
+   ```
+2. **Server** on a new database (`PORT=8797 DB_PATH="$PWD/data/video-$(date +%s).db" bun src/main.ts`).
+3. **Auto-settler:** `TERVANE_SERVER_PORT=8797 bun scripts/demo/autosettle.ts`. **This terminal is on camera.** Each line is one `cre workflow simulate --broadcast` epoch with its Monad tx.
+4. **Web:** `cd web && bun run dev`, with `web/.env.local` pointing at `http://localhost:8797`.
+5. **Seed the background lenders:** `TERVANE_SERVER_PORT=8797 bun scripts/demo/seed-lenders.ts`. Wait for its `settled … intents=2` line in the auto-settler.
+
+**Wallets (two browser profiles, each with its own wallet, on Monad Testnet 10143, about 0.3 MON each)**
+- **Profile A = Ada:** *Get 10,000 tUSD* → *Deposit* **600 tUSD**.
+- **Profile B = Dayo:** *Get 10 tETH* → *Deposit* **0.85 tETH**.
+- Wait for the auto-settler's `settled` line. Sign the view message once in each profile, so no signature prompt appears on camera.
+- Run `00-preflight.ts` checks by hand: feed $2,500, server lag < 5 blocks, deployer ≥ 1 MON.
+
+**Screen**
+- Record at **1920×1080**, 30 fps (OBS scenes or whole screen + `Cmd-Tab`).
+- Windows: **Browser A**, **Browser B**, the **auto-settler terminal** (font ≥ 18 pt, dark), and a **Monadscan** tab on TervaneCore.
+- Browser zoom **110–125%**. Close other tabs; Do Not Disturb on.
+- **Never** show or run the simulator with `--engine-logs` (O-16).
+
+**Timing:** a transaction confirms in about 1 s and its epoch settles about 15–25 s later. Narrate the value while it settles; don't wait in silence. If the live run goes long, cut the wait in editing, never the settled line.
+
+### 1.1 The script
+
+> Cut points are marked ✂️. Voiceover is in quotes; adapt it to your voice.
+
+**0:00 – 0:20 · Landing: Hero** ✂️ browser on `/`
+> "This is **Tervane**: fixed-rate credit on Monad, priced by sealed bids. Your rate is visible only to you and a Chainlink CRE enclave."
+
+**0:20 – 0:50 · Landing: Problem → How it works** (scroll)
+> "Onchain order books publish every bid, so lenders leak their cost of capital the moment they post. Here, every intent is encrypted in your browser to an enclave key published on the contract, and lands on Monad as the same 350 bytes of ciphertext."
+
+Scroll to *How it works*, point at step 3.
+> "A confidential CRE workflow checks our server's ledger against the onchain Merkle root, decrypts the book inside the enclave, runs one uniform-price auction per tenor, and writes one signed report. That report is the only thing that can change state."
+
+**0:50 – 1:00 · Cut to the auto-settler terminal**
+> "This is the settler, running the CRE workflow with `cre workflow simulate --broadcast` against Monad testnet. Every line is one epoch, and every epoch is a real transaction."
+
+**1:00 – 3:40 · LIVE APP (spend the most time here)** ✂️ cut to Browser A (`/app`)
+
+**(1:00) Market**
+> "The market already has lenders in it, two other wallets with sealed bids. Their rates aren't on this page, in the contract, or in our server's database."
+
+**(1:15) Lend, as Ada (Browser A)**
+- 600 tUSD, tenor **10 min (demo)**, min rate **4.13%** → *Seal and submit* → confirm.
+> "I'm lending 600 at a minimum of 4.13 percent. Watch: the app encrypts this before my wallet even sees it."
+- Open the tx on **Monadscan**, show the input data.
+> "Onchain it's 350 bytes of ciphertext: no amount, no side, no rate."
+- Cut to the terminal as the `settled … intents=1` line lands.
+> "The enclave took it in. It's resting in the book, still sealed."
+
+**(1:50) Borrow, as Dayo (Browser B)**
+- 1,000 tUSD, tenor **10 min (demo)**, max rate **5.52%**, collateral **0.85 tETH** → *Seal and submit*.
+> "Now a borrower: 1,000 at no more than 5.52 percent, with 0.85 ETH of collateral. The app checks the collateral ratio before spending any gas."
+
+**(2:10) The match** ✂️ terminal
+- Wait for `settled … fills=… clears=1`.
+> "One epoch. Inside the enclave the book clears at a single rate."
+
+✂️ Browser B → **Positions**
+> "Dayo borrowed 1,000 at **5.27 percent**: owed 1,000.001003 after the 10-minute demo tenor."
+
+✂️ Browser A → **Positions**, then **Market**
+> "Ada's 600 filled at that same rate: everyone pays and earns the clearing rate, not their own bid. The Market shows only that one number. The 6.11 percent lender didn't fill, and that bid has never left the enclave."
+- On Monadscan, show the `Cleared` event: tenor 2, rate 527, volume 1,000.
+
+**(2:55) Price crash → liquidation** ✂️ terminal
+```bash
+bun scripts/demo/03-crash-price.ts 1800
+```
+> "ETH drops to 1,800. The settler sees the new price round and runs an epoch right away."
+- Wait for `settled … liq=1`.
+> "The enclave read the price, verified the round onchain, and liquidated: it seized what's owed plus ten percent, sent five percent to the treasury and the rest to the lenders pro rata, and Dayo gets the remainder back."
+- Browser A → **Positions/Wallet:** Ada **+0.348333682711666668 tETH**. Browser B: Dayo gets back **0.238888275944444444 tETH** and keeps the 1,000 tUSD.
+
+**(3:25) Credit proof** (Browser A → **Credit** → *Prove my tier onchain*)
+> "And because the ledger is committed onchain as a Merkle root, Ada can prove her tier to anyone (`verifyAccount` returns true) without revealing anything else in her book."
+
+**3:40 – 4:20 · Why the chain can trust this** ✂️ terminal + landing *Trust*
+- **Pre-recorded inserts, from a separate `run-all.ts` (Gate 5) run, never against the video stack.** `06-tamper-server.ts` stops and restarts its own server.
+  - `bun scripts/demo/05-forge-report.ts` → `InvalidSender`
+  - `bun scripts/demo/06-tamper-server.ts` → `E_ROOT_MISMATCH`, no tx
+> "The chain doesn't trust the enclave blindly, and the enclave doesn't trust our server. A report from anywhere but the Chainlink forwarder reverts. A tampered server database fails the root check, and nothing is written."
+- Scroll the landing to *Know exactly who sees what*.
+> "And we're explicit about trust: positions are private from the public chain, not from our server; rates are private from everyone except you and the enclave."
+
+**4:20 – 4:45 · Escape hatch** (landing *Testnet* section, or the Gate 7 result)
+> "If settlement ever stops, everyone exits with a Merkle proof against the last root. We ran that end to end on Monad testnet: exits, an escape repay, a third-party liquidation, every claim paid, and the contract ended holding exactly zero."
+
+**4:45 – 5:00 · Landing: Closing** ✂️
+> "Tervane: bid without showing your hand. Thanks for watching."
+
+### 1.2 Shot list (for editing)
+
+| Time | Source | Content |
+|---|---|---|
+| 0:00 | Landing | Hero |
+| 0:20 | Landing | Problem → How it works |
+| 0:50 | Terminal | Auto-settler: CRE simulate, one epoch per line |
+| 1:00 | App A | Market (sealed lenders already in the book) |
+| 1:15 | App A + Monadscan | Sealed lend, 350-byte calldata |
+| 1:50 | App B | Sealed borrow |
+| 2:10 | Terminal → App A/B → Monadscan | Match at 5.27%, `Cleared` event |
+| 2:55 | Terminal → App A/B | Crash to $1,800 → `liq=1`, tETH to lenders |
+| 3:25 | App A | Credit proof |
+| 3:40 | Terminal + Landing | Forged report / tampered server rejected; trust table |
+| 4:20 | Landing | Escape hatch (Gate 7) |
+| 4:45 | Landing | Closing |
+
+### 1.3 Pro tips
+
+- **Rehearse on a throwaway deployment**, then deploy fresh for the take. A recorded deployment can't be reused cleanly: the book and loans persist.
+- **Keep the auto-settler visible**, docked bottom-right if you can. The `settled … write=SUCCESS tx 0x…` lines are the CRE proof the bounty asks for.
+- **Say "simulated with the CRE CLI against Monad testnet"** once, out loud.
+- If an epoch is slow, keep talking ("while the enclave clears the book…"). Never cut away before the `settled` line.
+- Show the wallet network = **Monad Testnet** at least once.
+- Export **1080p H.264**, under about 200 MB. Add a lower-third with the repo URL.
+
+---
+
+## 1b. The ≤ 2-minute terminal cut (fallback if a submission caps length)
 
 Record each segment separately and cut; WASM compile time in the simulator would otherwise eat the budget. Terminal font ≥ 18 pt, dark theme, explorer in a second window. Voiceover is written to be read at a calm pace; trim words, not segments.
 
@@ -68,6 +203,8 @@ All scripts read `deployments/monad-testnet.json` and `scripts/demo/wallets.json
 | Script | Does |
 |---|---|
 | `00-preflight.ts` | Checks everything in §5; prints a green/red checklist |
+| `autosettle.ts` | Live video (§1): one `cre workflow simulate --broadcast` epoch within seconds of every indexed inbox message or new price round, a 5-min heartbeat (keeps `ESCAPE_DELAY` closed), and a feed refresh before `MAX_PRICE_AGE`. Needs the server running and the settler config pointing at it |
+| `seed-lenders.ts` | Live video (§1): Bola LEND 600 and Chidi LEND 1,000 (tenor 2) from the demo wallets, so the browser wallets can play Ada and Dayo; rates are encrypted and never printed |
 | `01-seed.ts` | Faucet → approve → deposit → encrypt + `submitIntent` for the four wallets in inbox order: Ada dep, Bola dep, Chidi dep, Dayo dep, Ada lend, Bola lend, Chidi lend, Dayo borrow. Saves `DAYO_TX` to `.demo-state.json`. Shows rates only in a column labeled "client-side only" |
 | `02-settle-intents.sh` | Runs the H0 simulate command with `DAYO_TX`, `--broadcast`; then asserts the onchain `Cleared` event equals 527/1000e6 |
 | `03-crash-price.ts <usd>` | `MockV3Aggregator.updateAnswer(usd × 1e8)` |
