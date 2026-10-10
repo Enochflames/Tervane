@@ -15,7 +15,8 @@ The app's ledger views (balances, Positions, Credit) need the Tervane server, wh
 
 ## Contents
 
-- [How it works](#how-it-works)
+- [How it works (architecture overview)](#how-it-works-architecture-overview)
+- [Technology stack](#technology-stack)
 - [Monad integration](#monad-integration)
 - [Contract addresses (Monad testnet)](#contract-addresses-monad-testnet)
 - [Chainlink CRE](#chainlink-cre)
@@ -24,12 +25,13 @@ The app's ledger views (balances, Positions, Credit) need the Tervane server, wh
 - [Setup and running](#setup-and-running)
 - [Tests and evidence](#tests-and-evidence)
 - [Documentation](#documentation)
+- [Originality, build window and AI disclosure](#originality-build-window-and-ai-disclosure)
 - [Prior art](#prior-art)
 - [License and attribution](#license-and-attribution)
 
 ---
 
-## How it works
+## How it works (architecture overview)
 
 ```mermaid
 flowchart LR
@@ -82,6 +84,22 @@ flowchart LR
 
   A borrower can **prove their tier onchain** (`verifyAccount` with a Merkle proof) without revealing their orders or loans.
 - **Liquidation:** seizes at most owed + 10% of collateral value; 5% of that goes to the treasury and the rest to lenders pro rata. The borrower keeps any remainder.
+
+---
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Chain | **Monad testnet** (chain id 10143) |
+| Contracts | Solidity 0.8.30 (`evm_version = prague`), Foundry 1.8 with `network = "monad"`, OpenZeppelin Contracts v5.4 |
+| Confidential settlement | **Chainlink CRE**: one confidential workflow (`handlerInTee`), EVM log trigger + cron, `@chainlink/cre-sdk` 1.23, CRE CLI 1.36 (`cre workflow simulate --broadcast`) |
+| Shared protocol code | TypeScript (`packages/core`, QuickJS-safe): ECIES with `@noble/curves`, `@noble/hashes`, `@noble/ciphers` 2.4; ABI and keccak with viem 2.57 |
+| Server | Bun, Hono 4.13, SQLite (`bun:sqlite`, WAL), zod |
+| Web | React 19, Vite, wagmi 3, viem, TanStack Query, React Router 7 |
+| Price data | Chainlink AggregatorV3 interface (mock feed on testnet) |
+| Hosting | Vercel (web app); the server runs on a team machine behind a Cloudflare tunnel |
+| Testing | `bun test` + fast-check property tests; Foundry unit, fuzz, invariant and golden-vector parity tests |
 
 ---
 
@@ -334,6 +352,18 @@ bun scripts/demo/run-gate7.ts    # escape hatch end to end on its own deployment
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decision records, open questions, testnet run logs |
 | [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md) | Demo video script and judge walkthrough |
 | [`userflow.md`](userflow.md) | Step-by-step end-to-end test |
+
+---
+
+## Originality, build window and AI disclosure
+
+- **Built during the hackathon.** All Tervane code, contracts, specs and docs were written during the Monad Metropolis build window. The first commit is on 2026-10-03, and the full history is public in this repository.
+- **Pre-existing components** are third-party, used unmodified as building blocks, and listed under [License and attribution](#license-and-attribution):
+  - OpenZeppelin Contracts and forge-std (git submodules),
+  - Chainlink's `ReceiverTemplate.sol` / `IReceiver.sol` / `IERC165.sol`, vendored unmodified from the CRE docs,
+  - the npm libraries.
+  No earlier project or codebase of ours was reused.
+- **AI coding tools were used.** The team built Tervane with **Claude Code** (Anthropic) as an AI coding assistant, for writing and reviewing code, tests and documentation, and for running the testnet scripts. The team set the design, specs and decisions; every change was reviewed and is in the commit history. The repository's `CLAUDE.md` holds the project instructions given to the assistant.
 
 ---
 
