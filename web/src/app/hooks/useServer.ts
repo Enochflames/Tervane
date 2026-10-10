@@ -18,7 +18,12 @@ export interface LoanView {
   id: string; role: 'borrower' | 'lender'; tenorId: number; principal: string; clearingRateBps: number; owed: string; collateral: string
   tierAtOpen: number; openedAt: string; maturity: string; share: string | null; healthBps: string | null
 }
-export interface LedgerView { root: string; epoch: string; account: AccountJson | null; openOrders: OrderJson[]; loans: LoanView[] }
+/** A loan that has left the ledger (served only in the signed account view). */
+export interface ClosedLoanView {
+  id: string; role: 'borrower' | 'lender'; outcome: 'repaid' | 'liquidated'; closedEpoch: number; closedAt: string | null
+  tenorId: number; principal: string; clearingRateBps: number; owed: string; collateral: string; openedAt: string; maturity: string; share: string | null
+}
+export interface LedgerView { root: string; epoch: string; account: AccountJson | null; openOrders: OrderJson[]; loans: LoanView[]; closedLoans?: ClosedLoanView[] }
 export interface ProofBundle {
   root: string; epoch: string
   account: { leaf: string; value: AccountJson; proof: string[] }

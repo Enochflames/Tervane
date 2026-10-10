@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../AppContext'
 import { LedgerGate, LedgerStatus } from '../LedgerGate'
-import { eth, pct, until, usd } from '../lib/format'
+import { ago, eth, pct, until, usd } from '../lib/format'
 import { submitIntent } from '../lib/intents'
 import type { TxPhase } from '../lib/tx'
 import { Empty, Panel, Pill, TxButton } from '../ui/ui'
@@ -29,6 +29,7 @@ function PositionsBody() {
   const loans = app.ledger.data?.loans ?? []
   const borrowed = loans.filter((l) => l.role === 'borrower')
   const lent = loans.filter((l) => l.role === 'lender')
+  const closed = app.ledger.data?.closedLoans ?? []
   const [phase, setPhase] = useState<Record<string, TxPhase>>({})
   const latest = useMemo(() => app.local.intents.find((i) => i.action === ACTION_REPAY), [app.local.intents])
   const free = acct ? BigInt(acct.usdFree) : 0n
@@ -89,6 +90,34 @@ function PositionsBody() {
                       <td className="num">{usd(expected, 6)}</td>
                       <td className="num">{until(Number(l.maturity) - app.now)}</td>
                       <td className="num">{eth(BigInt(l.collateral))} tETH</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Closed" pad={false}>
+        {closed.length === 0 ? <Empty title="No closed loans yet">Loans you borrowed or lent appear here once they’re repaid or liquidated.</Empty> : (
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Loan</th><th>Role</th><th>Tenor</th><th className="num">Amount</th><th className="num">Clearing rate</th><th className="num">Settled for</th><th>Outcome</th><th className="num">Closed</th></tr></thead>
+              <tbody>
+                {closed.map((l) => {
+                  const amount = l.role === 'borrower' ? BigInt(l.principal) : BigInt(l.share ?? '0')
+                  const owed = (BigInt(l.owed) * amount) / BigInt(l.principal)
+                  return (
+                    <tr key={l.id}>
+                      <td className="mono">#{l.id}</td>
+                      <td>{l.role === 'borrower' ? 'Borrowed' : 'Lent'}</td>
+                      <td>{tenorLabel(l.tenorId)}</td>
+                      <td className="num">{usd(amount)}</td>
+                      <td className="num">{pct(l.clearingRateBps)}</td>
+                      <td className="num">{l.outcome === 'repaid' ? `${usd(owed, 6)} tUSD` : l.role === 'lender' ? 'in tETH from collateral' : `${eth(BigInt(l.collateral))} tETH collateral liquidated`}</td>
+                      <td>{l.outcome === 'repaid' ? <Pill tone="positive">Repaid</Pill> : <Pill tone="warn">Liquidated</Pill>}</td>
+                      <td className="num">{l.closedAt ? ago(app.now - Number(l.closedAt)) : `epoch ${l.closedEpoch}`}</td>
                     </tr>
                   )
                 })}
