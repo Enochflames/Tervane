@@ -1,9 +1,31 @@
 // Ledger store keyed by root (SERVER.md §4): pending until EpochSettled (or the chain's stateRoot) confirms it,
 // then committed; siblings for the same parent become orphaned. Every stored root is recomputed by
 // @tervane/core, so a state that doesn't hash to its root never enters the store.
-import { applyDiff, encodeState, genesisState, merkleRoot, stateFromJson, type EpochDiff, type Hex, type LedgerState } from '@tervane/core'
+import { applyDiff, encodeState, genesisState, merkleRoot, stateFromJson, type EpochDiff, type Hex, type LedgerState, type Loan } from '@tervane/core'
 import type { Db } from './db'
 import { HttpError } from './errors'
+
+const s = (x: bigint) => x.toString(10)
+const loanJson = (l: Loan) => JSON.stringify({
+  id: s(l.id), borrower: l.borrower, tenorId: l.tenorId, principal: s(l.principal), rateBps: l.rateBps, owed: s(l.owed),
+  collateral: s(l.collateral), tierAtOpen: l.tierAtOpen, openedAt: s(l.openedAt), maturity: s(l.maturity),
+  lenders: l.lenders.map((x) => ({ lender: x.lender, amount: s(x.amount) })),
+})
+
+/**
+ * Loans present in `prev` and gone in `next`. A repay raises the borrower's repaidVolume by the principal
+ * (PROTOCOL-SPEC §10.3); a liquidation never raises it (it resets to the tier floor), so that tells them apart.
+ */
+export function closedLoans(prev: LedgerState, next: LedgerState) {
+  const out: { loan: Loan; outcome: 'repaid' | 'liquidated' }[] = []
+  for (const [id, l] of prev.loans) {
+    if (next.loans.has(id)) continue
+    const before = prev.accounts.get(l.borrower)?.repaidVolume ?? 0n
+    const after = next.accounts.get(l.borrower)?.repaidVolume ?? 0n
+    out.push({ loan: l, outcome: after >= before + l.principal ? 'repaid' : 'liquidated' })
+  }
+  return out
+}
 
 export class StateStore {
   private cache = new Map<string, LedgerState>()
@@ -15,6 +37,26 @@ export class StateStore {
     if (!db.headCommitted()) {
       db.upsertState({ root, epoch: 0, status: 'committed', parent: null, snapshot: encodeState(g), created_at: Date.now() })
     }
+    this.backfillClosedLoans()
+  }
+
+  private recordClosed(prev: LedgerState, next: LedgerState, epoch: number) {
+    for (const c of closedLoans(prev, next)) {
+      this.db.insertClosedLoan({ loan_id: Number(c.loan.id), epoch, outcome: c.outcome, borrower: c.loan.borrower.toLowerCase(),
+        lenders: c.loan.lenders.map((x) => x.lender.toLowerCase()).join(','), loan: loanJson(c.loan) })
+    }
+  }
+
+  /** One-time: derive closed loans from the committed history of a database that predates the table. */
+  private backfillClosedLoans() {
+    if (this.db.getKv('closedLoansBackfilled')) return
+    const rows = this.db.committedStates()
+    this.db.tx(() => {
+      for (let i = 1; i < rows.length; i++) {
+        this.recordClosed(stateFromJson(JSON.parse(rows[i - 1]!.snapshot)), stateFromJson(JSON.parse(rows[i]!.snapshot)), rows[i]!.epoch)
+      }
+      this.db.setKv('closedLoansBackfilled', '1')
+    })
   }
 
   load(root: string): LedgerState | undefined {
@@ -59,7 +101,10 @@ export class StateStore {
       return 'missing'
     }
     if (row.status === 'committed') return 'already'
+    const prev = row.parent ? this.load(row.parent) : undefined
+    const next = this.load(root)
     this.db.tx(() => {
+      if (prev && next) this.recordClosed(prev, next, row.epoch)
       this.db.setStatus(root, 'committed')
       if (row.parent) this.db.orphanSiblings(row.parent, root)
       this.db.gc(row.epoch)

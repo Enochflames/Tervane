@@ -20,6 +20,7 @@ export class Indexer {
     deployBlock: number,
     private readonly maxRange: number,
     private readonly log: (m: string) => void = console.log,
+    private readonly parallel = 1,
   ) {
     this.range = BigInt(maxRange)
     const saved = db.getKv('lastBlock')
@@ -32,15 +33,26 @@ export class Indexer {
     this.status.finalized = finalized
     const from = this.status.lastBlock + 1n
     if (from > finalized) return false
-    const to = from + this.range - 1n < finalized ? from + this.range - 1n : finalized
-    let logs: IndexedLog[]
+    // Catching up: fetch up to `parallel` consecutive pages at once, then apply them strictly in order.
+    const pages: [bigint, bigint][] = []
+    for (let f = from; f <= finalized && pages.length < this.parallel; f += this.range) {
+      pages.push([f, f + this.range - 1n < finalized ? f + this.range - 1n : finalized])
+    }
+    let fetched: IndexedLog[][]
     try {
-      logs = await this.src.logs(from, to)
+      fetched = await Promise.all(pages.map(([a, b]) => this.src.logs(a, b)))
       if (this.range < BigInt(this.maxRange)) this.range += 1n
     } catch (e) {
       this.range = this.range > 1n ? this.range / 2n : 1n // adapt to provider limits
       throw e
     }
+    for (let i = 0; i < pages.length; i++) await this.apply(fetched[i]!, pages[i]![1])
+    if (++this.sinceAccCheck >= 20 && this.status.lastIdx > 0) { this.sinceAccCheck = 0; await this.checkAcc() }
+    return true
+  }
+
+  /** Applies one page atomically and advances lastBlock to its end. */
+  private async apply(logs: IndexedLog[], to: bigint) {
     logs.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1))
 
     const settled: { root: Hex }[] = []
@@ -64,8 +76,6 @@ export class Indexer {
     })
     this.status.lastBlock = to
     for (const s of settled) this.store.commit(s.root)
-    if (++this.sinceAccCheck >= 20 && this.status.lastIdx > 0) { this.sinceAccCheck = 0; await this.checkAcc() }
-    return true
   }
 
   private onInbox(l: IndexedLog) {

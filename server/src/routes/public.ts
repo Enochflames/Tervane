@@ -31,7 +31,7 @@ export function publicRoutes(d: PublicDeps) {
     const account = await authenticate(await c.req.json().catch(() => null), d.chainId, d.core, d.now())
     const head = d.store.head()
     const price = d.db.lastEpoch()?.price
-    return c.json(accountView(head.state, head.root, account, price ? BigInt(price) : undefined))
+    return c.json(accountView(head.state, head.root, account, price ? BigInt(price) : undefined, d.db.closedLoansFor(account.toLowerCase())))
   })
 
   app.post('/proof', async (c) => {

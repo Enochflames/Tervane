@@ -7,7 +7,9 @@ import { HttpError } from './errors'
 
 const s = (x: bigint) => x.toString(10)
 
-export function accountView(state: LedgerState, root: Hex, account: Address, price: bigint | undefined) {
+type ClosedRow = { loan_id: number; epoch: number; outcome: string; loan: string; as_of: number | null }
+
+export function accountView(state: LedgerState, root: Hex, account: Address, price: bigint | undefined, closed: ClosedRow[] = []) {
   const a = state.accounts.get(account)
   const orders = [...state.orders.values()].filter((o) => o.owner === account).sort((x, y) => (x.id < y.id ? -1 : 1))
   const loans = [...state.loans.values()].filter((l) => l.borrower === account || l.lenders.some((x) => x.lender === account))
@@ -23,6 +25,16 @@ export function accountView(state: LedgerState, root: Hex, account: Address, pri
       share: l.borrower === account ? null : s(l.lenders.find((x) => x.lender === account)!.amount),
       healthBps: price && l.owed > 0n ? s((valueUsd(l.collateral, price) * BPS) / l.owed) : null,
     })),
+    // Repaid or liquidated loans this account was part of, newest first.
+    closedLoans: closed.map((r) => {
+      const l = JSON.parse(r.loan) as { id: string; borrower: string; tenorId: number; principal: string; rateBps: number; owed: string; collateral: string; openedAt: string; maturity: string; lenders: { lender: string; amount: string }[] }
+      const borrower = l.borrower.toLowerCase() === account.toLowerCase()
+      return {
+        id: l.id, role: borrower ? 'borrower' : 'lender', outcome: r.outcome, closedEpoch: r.epoch, closedAt: r.as_of === null ? null : String(r.as_of),
+        tenorId: l.tenorId, principal: l.principal, clearingRateBps: l.rateBps, owed: l.owed, collateral: l.collateral, openedAt: l.openedAt, maturity: l.maturity,
+        share: borrower ? null : l.lenders.find((x) => x.lender.toLowerCase() === account.toLowerCase())?.amount ?? null,
+      }
+    }),
   }
 }
 

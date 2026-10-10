@@ -8,6 +8,9 @@ Tervane is a private fixed-rate lending market on **Monad**, settled by a **Chai
 
 Built for **Monad Metropolis** (Track 01: Onchain Finance & Trading) and the Chainlink **"Best workflow with CRE"** bounty.
 
+**Live:** [tervane-nine.vercel.app](https://tervane-nine.vercel.app) (landing page) · [tervane-nine.vercel.app/app](https://tervane-nine.vercel.app/app) (app, Monad testnet).
+The app's ledger views (balances, Positions, Credit) need the Tervane server, which runs on a team machine behind a tunnel during demos. When it's offline, wallets still connect and sealed intents still go onchain, but those views stay empty. To run everything yourself, see [Setup and running](#setup-and-running).
+
 ---
 
 ## Contents
@@ -279,6 +282,21 @@ cd settler && cre workflow simulate settle --target staging-settings --non-inter
 - the match,
 - repay, or a price crash and liquidation (`bun scripts/demo/03-crash-price.ts 1800`),
 - withdrawal, then the credit proof.
+
+### Hosting the web app (Vercel)
+
+The web app is static and deploys to Vercel with the `vercel.json` in the repo root. That config builds the Bun workspace from the root, serves `web/dist`, and rewrites `/app/*` to the app. The server can't run on Vercel: it's long-running and keeps a SQLite file. So expose it from wherever it runs, and point the build at it:
+
+```bash
+# on the machine running the server: allow the hosted origin, then open a tunnel
+cd server && PORT=8797 WEB_ORIGIN="http://localhost:5173,https://<your-app>.vercel.app" DB_PATH=... bun src/main.ts
+cloudflared tunnel --url http://localhost:8797          # prints https://<random>.trycloudflare.com
+
+# deploy (from the repo root, after `vercel login`)
+vercel deploy --prod --yes --build-env VITE_SERVER_URL=https://<random>.trycloudflare.com
+```
+
+A quick tunnel's URL changes each time it restarts, so redeploy when it does. For a fixed URL, host the server with a persistent disk, or use a named Cloudflare tunnel.
 
 ### One-command runs
 

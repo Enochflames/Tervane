@@ -44,7 +44,8 @@ function makeIO(rt: TeeRuntime<Config>): SettlerIO {
       return bytesToHex(r.data)
     },
     httpGet(url, bearer) {
-      const r = http.sendRequest(rt, { url, method: 'GET', multiHeaders: auth(bearer) }).result()
+      // the server may wait up to INDEX_WAIT_MS (8 s) for its indexer to reach the chain's inbox; leave headroom
+      const r = http.sendRequest(rt, { url, method: 'GET', multiHeaders: auth(bearer), timeout: '20s' }).result()
       return { status: r.statusCode, body: text(r) }
     },
     httpPost(url, bearer, json) {

@@ -21,7 +21,7 @@ const toMessage = (r: InboxRow) => messageFromJson({
   blob: r.blob ? bytesToHex(r.blob) : '0x',
 })
 
-export function internalRoutes(db: Db, store: StateStore, key: string, sync: () => Promise<void>) {
+export function internalRoutes(db: Db, store: StateStore, key: string, sync: () => Promise<void>, indexed: () => Promise<void> = async () => {}) {
   const app = new Hono()
   app.use('*', async (c, next) => {
     if (!bearerOk(c.req.header('authorization'), key)) throw new HttpError(401, 'E_AUTH', 'bad bearer')
@@ -30,6 +30,7 @@ export function internalRoutes(db: Db, store: StateStore, key: string, sync: () 
 
   app.get('/epoch-input', async (c) => {
     await sync().catch(() => {}) // best effort: promote a pending state the chain already settled
+    await indexed().catch(() => {}) // bounded: wait until every onchain inbox message is indexed
     const cursor = BigInt(c.req.query('cursor') ?? 'x')
     const limit = BigInt(c.req.query('limit') ?? '200')
     const head = store.head()

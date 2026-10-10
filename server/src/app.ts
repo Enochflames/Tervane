@@ -13,6 +13,21 @@ import type { StateStore } from './state'
 export interface AppDeps {
   db: Db; store: StateStore; src: ChainSource; indexer?: Indexer; chainId: number; core: Address; internalKey: string
   webOrigin: string; now?: () => bigint; log?: (m: string) => void
+  /** Max wait in /internal/epoch-input for the indexer to reach the chain's inboxCount (default 8 s). */
+  indexWaitMs?: number
+}
+
+/**
+ * Resolves once the indexer holds every inbox message the chain has, or after `maxMs`. Closes the race where a
+ * log trigger (or a fast heartbeat) asks for the epoch window before the newest message is indexed. On timeout the
+ * caller serves what it has: a shorter window is still valid, and heartbeats must never stop.
+ */
+export function waitIndexed(src: ChainSource, db: Db, maxMs: number, pollMs = 250) {
+  return async () => {
+    const end = Date.now() + maxMs
+    const want = (await src.settlementState()).inboxCount
+    while (BigInt(db.lastInbox()?.idx ?? 0) < want && Date.now() < end) await Bun.sleep(pollMs)
+  }
 }
 
 /** Promote a pending state as soon as the chain's stateRoot equals it (same effect as EpochSettled, earlier). */
@@ -35,7 +50,8 @@ export function createApp(d: AppDeps) {
     await next()
     log(`${rid} ${c.req.method} ${c.req.path} -> ${c.res.status} ${Math.round(performance.now() - t)}ms`)
   })
-  app.use('/v1/*', cors({ origin: d.webOrigin, allowMethods: ['GET', 'POST'] }))
+  // WEB_ORIGIN may list several origins (local dev + the hosted app), comma-separated
+  app.use('/v1/*', cors({ origin: d.webOrigin.split(',').map((o) => o.trim()).filter(Boolean), allowMethods: ['GET', 'POST'] }))
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json({ code: err.code, message: err.message, ...err.extra }, err.status)
@@ -45,7 +61,7 @@ export function createApp(d: AppDeps) {
   app.notFound((c) => c.json({ code: 'E_NOT_FOUND', message: 'not found' }, 404))
 
   app.get('/ping', (c) => c.text('pong'))
-  app.route('/internal', internalRoutes(d.db, d.store, d.internalKey, chainSync(d.src, d.store)))
+  app.route('/internal', internalRoutes(d.db, d.store, d.internalKey, chainSync(d.src, d.store), waitIndexed(d.src, d.db, d.indexWaitMs ?? 8000)))
   app.route('/v1', publicRoutes({ db: d.db, store: d.store, src: d.src, indexer: d.indexer, chainId: d.chainId, core: d.core, now }))
   return app
 }
