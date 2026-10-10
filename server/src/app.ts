@@ -50,7 +50,8 @@ export function createApp(d: AppDeps) {
     await next()
     log(`${rid} ${c.req.method} ${c.req.path} -> ${c.res.status} ${Math.round(performance.now() - t)}ms`)
   })
-  app.use('/v1/*', cors({ origin: d.webOrigin, allowMethods: ['GET', 'POST'] }))
+  // WEB_ORIGIN may list several origins (local dev + the hosted app), comma-separated
+  app.use('/v1/*', cors({ origin: d.webOrigin.split(',').map((o) => o.trim()).filter(Boolean), allowMethods: ['GET', 'POST'] }))
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json({ code: err.code, message: err.message, ...err.extra }, err.status)

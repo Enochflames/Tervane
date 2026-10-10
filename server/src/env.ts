@@ -10,6 +10,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().default(8787),
   DB_PATH: z.string().default(join(import.meta.dir, '..', 'data', 'tervane.db')),
   DEPLOYMENT_FILE: z.string().default(join(import.meta.dir, '..', '..', 'deployments', 'monad-testnet.json')),
+  /** Allowed browser origins for /v1, comma-separated (e.g. http://localhost:5173,https://tervane.vercel.app). */
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   POLL_MS: z.coerce.number().int().default(1000),
   /** Monad's public RPC caps eth_getLogs at 100 blocks. */

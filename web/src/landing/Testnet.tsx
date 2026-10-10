@@ -33,7 +33,7 @@ export function Testnet() {
           </ol>
 
           <aside className="tn-contracts" data-reveal>
-            <h3 className="eyebrow">Contracts · verified on Sourcify</h3>
+            <h3 className="eyebrow">Contracts · Monad testnet</h3>
             <dl>
               {(Object.keys(CONTRACTS) as (keyof typeof CONTRACTS)[]).map((k) => (
                 <div key={k}>
