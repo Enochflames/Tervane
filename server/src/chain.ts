@@ -1,7 +1,7 @@
 // Chain access for the indexer and views. Only logs over ranges and calls at the latest block:
 // Monad nodes don't serve arbitrary historical state (CLAUDE.md §8).
 import { coreAbi, type Hex } from '@tervane/core'
-import { createPublicClient, http, parseEventLogs, type PublicClient } from 'viem'
+import { createPublicClient, fallback, http, parseEventLogs, type PublicClient } from 'viem'
 import type { Deployment } from './env'
 
 export interface IndexedLog {
@@ -24,8 +24,13 @@ export interface ChainSource {
   enclavePubKey(): Promise<Hex>
 }
 
-export function viemSource(rpc: string, dep: Deployment): ChainSource {
-  const client: PublicClient = createPublicClient({ transport: http(rpc, { retryCount: 2 }) })
+/** First URL is primary; the rest are tried in order only when it fails (Monad's public RPC has outages). */
+export function viemSource(rpcs: string | string[], dep: Deployment): ChainSource {
+  const urls = [rpcs].flat().filter(Boolean)
+  const transport = urls.length > 1
+    ? fallback(urls.map((u) => http(u, { retryCount: 1, timeout: 8_000 })), { rank: false })
+    : http(urls[0], { retryCount: 2 })
+  const client: PublicClient = createPublicClient({ transport })
   const core = dep.tervaneCore
   return {
     async finalizedBlock() {

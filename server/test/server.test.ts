@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  ACTION_BORROW, ACTION_LEND, KIND_DEPOSIT, KIND_INTENT, PAYLOAD_VERSION, ZERO32, accStep, addr, decodeEpochInput,
+  ACTION_BORROW, ACTION_LEND, ACTION_REPAY, KIND_DEPOSIT, KIND_INTENT, PAYLOAD_VERSION, ZERO32, accStep, addr, decodeEpochInput,
   encodeEpochDiff, encodePayload, encryptIntent, enclavePublicKey, genesisState, makeDecryptor, merkleRoot, msgHash,
   runEpoch, verifyProof, lendersHash, type Address, type Hex, type IntentPayload,
 } from '@tervane/core'
@@ -235,6 +235,40 @@ describe('public API', () => {
     expect((await t.post('/v1/account', { account: 'x' })).status).toBe(400)
   })
 
+  type Closed = { id: string; role: string; outcome: string; closedEpoch: number; closedAt: string | null; principal: string; clearingRateBps: number; share: string | null }
+  const view = async (t: Awaited<ReturnType<typeof settledDemo>>, w: ReturnType<typeof wallet>) =>
+    (await (await t.post('/v1/account', await t.sign(w))).json()) as { loans: unknown[]; closedLoans: Closed[] }
+
+  test('closed loans: a repaid loan leaves Positions and shows as repaid for borrower and lenders', async () => {
+    const t = await settledDemo()
+    t.chain.inbox(KIND_DEPOSIT, A(dayo), 0, 1_000_000n) // covers the interest
+    t.chain.intent(A(dayo), p({ action: ACTION_REPAY, nonce: 2n, refId: 1n }))
+    await t.sync()
+    t.setNow(T0 + 60n)
+    const out = await t.enclaveEpoch()
+    t.chain.settle(2n, out.report.newRoot, out.report.inboxTo)
+    await t.sync()
+    const d = await view(t, dayo), b = await view(t, bola)
+    expect(d.loans).toHaveLength(0)
+    expect(d.closedLoans).toHaveLength(1)
+    expect(d.closedLoans[0]).toMatchObject({ id: '1', role: 'borrower', outcome: 'repaid', closedEpoch: 2, principal: '1000000000', clearingRateBps: 527, share: null })
+    expect(d.closedLoans[0]!.closedAt).toBe(String(T0)) // the epoch's asOf as emitted by EpochSettled (the fake chain always emits T0)
+    expect(b.closedLoans[0]).toMatchObject({ id: '1', role: 'lender', outcome: 'repaid', share: '400000000' })
+    expect((await view(t, chidi)).closedLoans).toHaveLength(0) // not a party to the loan
+  })
+
+  test('closed loans: an overdue loan shows as liquidated', async () => {
+    const t = await settledDemo()
+    t.setNow(T0 + 600n + 61n) // past maturity + grace
+    const out = await t.enclaveEpoch()
+    t.chain.settle(2n, out.report.newRoot, out.report.inboxTo)
+    await t.sync()
+    const d = await view(t, dayo)
+    expect(d.loans).toHaveLength(0)
+    expect(d.closedLoans[0]).toMatchObject({ id: '1', role: 'borrower', outcome: 'liquidated', closedEpoch: 2 })
+    expect((await view(t, ada)).closedLoans[0]).toMatchObject({ role: 'lender', outcome: 'liquidated', share: '600000000' })
+  })
+
   test('/v1/proof: account and loan proofs verify against the committed root', async () => {
     const t = await settledDemo()
     const r = await t.post('/v1/proof', await t.sign(dayo))
@@ -272,5 +306,49 @@ describe('public API', () => {
     }
     for (const r of ['413', '611', '552']) expect(values).not.toContain(r)
     expect(values).toContain('527') // clears.rate_bps and the loan's clearing rate
+  })
+})
+
+describe('demo readiness: catch-up and the trigger/indexer race', () => {
+  test('parallel catch-up applies pages strictly in order (same result as one page at a time)', async () => {
+    const run = async (parallel: number) => {
+      const chain = new FakeChain()
+      for (let i = 0; i < 30; i++) { chain.inbox(KIND_DEPOSIT, A(ada), 0, BigInt(i + 1)); chain.block += 37n } // spread over ~1,100 blocks
+      const db = new Db(':memory:')
+      const store = new StateStore(db, GENESIS, () => {})
+      const ix = new Indexer(db, store, chain, 101, 10, () => {}, parallel) // 10-block pages force many pages
+      let steps = 0
+      while (await ix.step()) steps++
+      return { steps, last: db.lastInbox(), block: ix.status.lastBlock, acc: await ix.checkAcc() }
+    }
+    const one = await run(1), six = await run(6)
+    expect(six.last?.idx).toBe(30)
+    expect(six.last?.acc).toBe(one.last?.acc)
+    expect(six.block).toBe(one.block)
+    expect(six.acc).toBe(true)
+    expect(six.steps).toBeLessThan(one.steps / 4) // ~6× fewer round trips
+  })
+
+  test('epoch-input waits until the newest onchain message is indexed', async () => {
+    const s = setup()
+    s.chain.inbox(KIND_DEPOSIT, A(ada), 0, 600_000_000n)
+    // the chain has message #1, the indexer hasn't run yet; it catches up 300 ms into the request
+    setTimeout(() => { s.sync() }, 300)
+    const res = await s.req('/internal/epoch-input?cursor=0&limit=200', { headers: s.auth })
+    expect(res.status).toBe(200)
+    expect(decodeEpochInput(await res.text()).inboxTo).toBe(1n)
+  })
+
+  test('if the indexer stays behind, epoch-input serves what it has after the bound (heartbeats never stop)', async () => {
+    const chain = new FakeChain()
+    const db = new Db(':memory:')
+    const store = new StateStore(db, GENESIS, () => {})
+    const app = createApp({ db, store, src: chain, chainId: 10143, core: CORE, internalKey: KEY, webOrigin: 'x', log: () => {}, indexWaitMs: 400 })
+    chain.inbox(KIND_DEPOSIT, A(ada), 0, 1n) // never indexed
+    const t = Date.now()
+    const res = await app.request('/internal/epoch-input?cursor=0&limit=200', { headers: { authorization: `Bearer ${KEY}` } })
+    expect(res.status).toBe(200)
+    expect(decodeEpochInput(await res.text()).inboxTo).toBe(0n)
+    expect(Date.now() - t).toBeGreaterThanOrEqual(380)
   })
 })

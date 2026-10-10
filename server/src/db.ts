@@ -14,6 +14,8 @@ export interface InboxRow {
 export interface StateRow { root: string; epoch: number; status: StateStatus; parent: string | null; snapshot: string; created_at: number }
 export interface EpochRow { epoch: number; root: string; inbox_to: number; as_of: number; price: string; tx_hash: string; block: number }
 export interface ClearRow { epoch: number; tenor_id: number; rate_bps: number; volume: string }
+/** A loan that left the ledger: repaid or liquidated. `loan` is the loan as it was in the last state holding it. */
+export interface ClosedLoanRow { loan_id: number; epoch: number; outcome: 'repaid' | 'liquidated'; borrower: string; lenders: string; loan: string }
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS inbox (
@@ -33,6 +35,11 @@ CREATE TABLE IF NOT EXISTS epochs (
 );
 CREATE TABLE IF NOT EXISTS clears (epoch INTEGER, tenor_id INTEGER, rate_bps INTEGER, volume TEXT, PRIMARY KEY (epoch, tenor_id));
 CREATE TABLE IF NOT EXISTS cursor (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS closed_loans (
+  loan_id INTEGER PRIMARY KEY, epoch INTEGER NOT NULL, outcome TEXT NOT NULL CHECK (outcome IN ('repaid','liquidated')),
+  borrower TEXT NOT NULL, lenders TEXT NOT NULL, loan TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS closed_loans_borrower ON closed_loans(borrower);
 `
 
 export class Db {
@@ -115,6 +122,21 @@ export class Db {
   lastEpoch(): EpochRow | undefined {
     return this.sql.query<EpochRow, []>('SELECT * FROM epochs ORDER BY epoch DESC LIMIT 1').get() ?? undefined
   }
+  // ── closed loans (history for Positions; same privacy as open loans: served only in the signed account view) ──
+  insertClosedLoan(r: ClosedLoanRow) {
+    this.sql.query(`INSERT OR IGNORE INTO closed_loans (loan_id, epoch, outcome, borrower, lenders, loan)
+      VALUES ($loan_id, $epoch, $outcome, $borrower, $lenders, $loan)`).run(r as never)
+  }
+  /** Closed loans where `account` (lowercase) was the borrower or a lender, newest first, with the epoch's asOf. */
+  closedLoansFor(account: string, limit = 50): (ClosedLoanRow & { as_of: number | null })[] {
+    return this.sql.query<ClosedLoanRow & { as_of: number | null }, [string, string, number]>(`SELECT c.*, e.as_of FROM closed_loans c
+      LEFT JOIN epochs e ON e.epoch = c.epoch WHERE c.borrower = ? OR instr(c.lenders, ?) > 0 ORDER BY c.epoch DESC, c.loan_id DESC LIMIT ?`)
+      .all(account, account, limit)
+  }
+  committedStates(): StateRow[] {
+    return this.sql.query<StateRow, []>("SELECT * FROM states WHERE status = 'committed' ORDER BY epoch").all()
+  }
+
   latestClears(): ClearRow[] {
     return this.sql.query<ClearRow, []>(`SELECT c.* FROM clears c JOIN (SELECT tenor_id, MAX(epoch) AS e FROM clears GROUP BY tenor_id) m
       ON c.tenor_id = m.tenor_id AND c.epoch = m.e ORDER BY c.tenor_id`).all()
