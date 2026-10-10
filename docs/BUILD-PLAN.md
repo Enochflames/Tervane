@@ -101,7 +101,7 @@ CLIENT.md screens in this priority: Lend/Borrow (with encryption) → Market →
 
 ## Phase 8 — Submission
 
-README (architecture diagram, trust table from THREAT-MODEL §2, prior-art citation, how to run the simulation), updated write-up (DECISIONS D-11), CRE bounty description (CRE-WORKFLOW §1 phrasing), demo video per DEMO-SCRIPT §1, explorer links to an `EpochSettled` tx and a `Cleared` event.
+README (architecture diagram, trust table from THREAT-MODEL §2, how to run the simulation), updated write-up (DECISIONS D-11), CRE bounty description (CRE-WORKFLOW §1 phrasing), demo video per DEMO-SCRIPT §1, explorer links to an `EpochSettled` tx and a `Cleared` event.
 
 **Gate 8:** a fresh clone + README instructions reproduce scenario 1 by someone who isn't Lycantho (or by Claude Code in a clean container).
 

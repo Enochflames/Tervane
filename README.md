@@ -26,7 +26,6 @@ The app's ledger views (balances, Positions, Credit) need the Tervane server, wh
 - [Tests and evidence](#tests-and-evidence)
 - [Documentation](#documentation)
 - [Originality, build window and AI disclosure](#originality-build-window-and-ai-disclosure)
-- [Prior art](#prior-art)
 - [License and attribution](#license-and-attribution)
 
 ---
@@ -364,12 +363,6 @@ bun scripts/demo/run-gate7.ts    # escape hatch end to end on its own deployment
   - the npm libraries.
   No earlier project or codebase of ours was reused.
 - **AI coding tools were used.** The team built Tervane with **Claude Code** (Anthropic) as an AI coding assistant, for writing and reviewing code, tests and documentation, and for running the testnet scripts. The team set the design, specs and decisions; every change was reviewed and is in the commit history. The repository's `CLAUDE.md` holds the project instructions given to the assistant.
-
----
-
-## Prior art
-
-[Ghost Finance](https://github.com/snehendu098/ghost) (Apache-2.0) is public prior art with the same core concept: private lending matched by Chainlink CRE. Tervane is a clean-room implementation. No code, text or documentation was taken from it.
 
 ---
 

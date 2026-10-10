@@ -77,7 +77,7 @@ tervane/
 7. **`packages/core` is QuickJS-safe.** No `node:*` imports, no `Buffer` reliance in core logic (convert at the edges), no WebCrypto. Use `@noble/*` v2 (`.js` import suffixes) and `viem` for ABI/keccak. If a dependency is not proven in `cre workflow simulate`, it does not go into core.
 8. **Solidity mirrors TS constants exactly.** Any change to `params.ts` requires the same change in `TervaneCore.sol` and a passing parity test.
 9. **No secrets in git.** `.env`, `secrets.yaml` values, private keys, API keys stay out. `.env.example` lists names only.
-10. **Clean-room.** Ghost Finance (`snehendu098/ghost`, Apache-2.0) is public prior art with the same core concept. Do not copy code, text, or docs from it. Cite it in the README as prior art. Hackathon rules require that submitted work was built during the build window.
+10. **Original work.** Hackathon rules require that submitted work was built during the build window. Do not copy code, text, or docs from other projects; vendored third-party code is attributed in the README.
 
 ---
 
