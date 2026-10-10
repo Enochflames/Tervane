@@ -150,7 +150,7 @@ Cap total `paid` per asset per epoch at a fraction of holdings (e.g. 10%). Slows
 - **O-14 SDK test utilities (installed SDK wins).** `@chainlink/cre-sdk@1.23.0` ships `TestTeeRuntime` and documents "construct via newTestTEERuntime", but no such factory is exported. TEE handlers are tested through the `SettlerIO` port instead (D-23).
 - **O-15 Foundry's monad gas model vs the chain.** `_processReport` with nothing to pay measured 101,608 gas in `forge test` (`network = "monad"`) but 48,894 on Monad testnet (trace of the Gate 3 tx). Size gas limits from on-chain traces, not Foundry numbers.
 - **O-16 The simulator prints the server bearer key under `--engine-logs`.** The CLI's fake HTTP capability (`fakes/http_action.go`) logs each request at info level, including `authorization: Bearer …` and the body; `-v` alone does not (tested: 0 vs 1 occurrence per epoch). Found by the Gate 5 audit's secret scan in the first run; the key never left this machine, was rotated, and the affected logs were deleted. DEMO-SCRIPT §3 now forbids `--engine-logs` for captures and recordings. Deployed TEEs don't log enclave HTTP, so this is simulation-only; worth reporting to the CRE team.
-- **O-5 Provenance.** Ghost Finance (`snehendu098/ghost`) is public prior art with the same concept and near-identical write-up text. Confirm the relationship. If it isn't Lycantho's, the README must cite it as prior art, and the write-up text must be original.
+- **O-5 Provenance.** Resolved by the team (2026-10-10): no prior-art citation in the README.
 
 ---
 
