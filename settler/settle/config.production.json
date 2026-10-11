@@ -6,7 +6,7 @@
   "usdTokenAddress": "0xC6e2B56b2108d932e993AbB4b74950c9Df284067",
   "ethTokenAddress": "0x6131B61dC88C6431216b7ecf0B0BE9c3A19DBFfF",
   "treasuryAddress": "0x074807ac37c5191CDf7815f8eb65042C1487A81f",
-  "serverUrl": "http://localhost:8787",
+  "serverUrl": "http://localhost:8797",
   "cronSchedule": "*/30 * * * * *",
   "maxInboxPerEpoch": 200,
   "writeGas": {
